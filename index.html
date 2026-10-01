@@ -778,8 +778,8 @@
 /* ============================================================
    КОНСТАНТЫ
    ============================================================ */
-const DAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота"];
-const DAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт","Сб"];
+const DAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница"];
+const DAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт"];
 
 /* 🔐 ПАРОЛЬ АДМИН-ПАНЕЛИ */
 const ADMIN_PASSWORD = "vkms2026";
@@ -1048,6 +1048,9 @@ function getFilteredList() {
 
 function renderCards(list) {
   const el = document.getElementById("cardsView");
+  const filter = document.getElementById("groupFilter").value;
+  const showGroup = filter === "all";
+
   el.innerHTML = list.map(p => `
     <div class="lesson-card">
       <div class="card-top">
@@ -1056,7 +1059,7 @@ function renderCards(list) {
       </div>
       <div class="subject">${escapeHtml(p.subject)}</div>
       <div class="meta">
-        <span class="group">Группа: <b>${escapeHtml(p.group)}</b></span>
+        ${showGroup ? `<span class="group">Группа: <b>${escapeHtml(p.group)}</b></span>` : ""}
         <span class="teacher">Преподаватель: <b>${escapeHtml(p.teacher)}</b></span>
       </div>
     </div>
