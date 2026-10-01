@@ -636,7 +636,7 @@
   <header class="header">
     <div>
       <h1>Расписание занятий</h1>
-      <div class="subtitle">День: <b id="headerDay">Четверг</b> <span id="headerCount"></span></div>
+      <div class="subtitle">День: <b id="headerDay">Четверг</b> <span id="headerDate"></span> <span id="headerCount"></span></div>
     </div>
     <button class="btn btn-primary" id="adminBtn" onclick="openLogin()">🔐 Админ</button>
   </header>
@@ -780,6 +780,14 @@
    ============================================================ */
 const DAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница"];
 const DAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт"];
+
+const DAY_DATES = {
+  "Понедельник": "29.09.2026",
+  "Вторник":     "30.09.2026",
+  "Среда":       "01.10.2026",
+  "Четверг":     "02.10.2026",
+  "Пятница":     "03.10.2026"
+};
 
 /* 🔐 ПАРОЛЬ АДМИН-ПАНЕЛИ */
 const ADMIN_PASSWORD = "vkms2026";
@@ -1126,10 +1134,11 @@ function renderEmptyState(list) {
 
 function renderHeader() {
   document.getElementById("headerDay").textContent = currentDay;
+  const date = DAY_DATES[currentDay] || "";
+  document.getElementById("headerDate").textContent = date ? `· ${date}` : "";
   const n = (schedule[currentDay] || []).length;
   document.getElementById("headerCount").textContent = n ? `· ${n} занятий` : "";
 }
-
 function renderAll() {
   renderDaysNav();
   renderHeader();
