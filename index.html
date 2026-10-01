@@ -789,6 +789,16 @@ const DAY_DATES = {
   "Пятница":     "03.10.2026"
 };
 
+/* Определяем сегодняшний день (только Пн–Пт) */
+function getTodayDay() {
+  const jsDay = new Date().getDay(); // 0=Вс, 1=Пн, ... 6=Сб
+  const map = { 1: "Понедельник", 2: "Вторник", 3: "Среда", 4: "Четверг", 5: "Пятница" };
+  return map[jsDay] || "Понедельник"; // если сб/вс — показываем Понедельник
+}
+
+let currentDay = getTodayDay();
+};
+
 /* 🔐 ПАРОЛЬ АДМИН-ПАНЕЛИ */
 const ADMIN_PASSWORD = "vkms2026";
 
