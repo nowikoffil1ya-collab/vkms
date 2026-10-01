@@ -1,4 +1,4 @@
-const CACHE_NAME = "raspisanie-vkms-v1";
+const CACHE_NAME = "raspisanie-vkms-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -21,20 +21,45 @@ self.addEventListener("install", event => {
   self.skipWaiting();
 });
 
-// Активация — чистим старые кэши
+// Активация — чистим ВСЕ старые кэши
 self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+      Promise.all(
+        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+      )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch: сначала кэш, потом сеть
+// Fetch
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
+  const url = new URL(event.request.url);
+
+  // Не кэшируем запросы к API (ofox, gemini и т.п.) — пропускаем как есть
+  if (url.hostname.includes("ofox.ai") || url.hostname.includes("workers.dev") || url.hostname.includes("googleapis.com")) {
+    return;
+  }
+
+  // HTML и главная страница — СНАЧАЛА СЕТЬ, потом кэш (чтобы всегда видеть свежую версию)
+  if (event.request.mode === "navigate" || url.pathname.endsWith(".html") || url.pathname === "/") {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Остальные файлы — cache-first
   event.respondWith(
     caches.match(event.request).then(cached => {
       const fetchPromise = fetch(event.request)
