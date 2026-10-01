@@ -781,23 +781,38 @@
 const DAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница"];
 const DAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт"];
 
-const DAY_DATES = {
-  "Понедельник": "29.09.2026",
-  "Вторник":     "30.09.2026",
-  "Среда":       "01.10.2026",
-  "Четверг":     "02.10.2026",
-  "Пятница":     "03.10.2026"
-};
-
 /* Определяем сегодняшний день (только Пн–Пт) */
 function getTodayDay() {
   const jsDay = new Date().getDay(); // 0=Вс, 1=Пн, ... 6=Сб
   const map = { 1: "Понедельник", 2: "Вторник", 3: "Среда", 4: "Четверг", 5: "Пятница" };
-  return map[jsDay] || "Понедельник"; // если сб/вс — показываем Понедельник
+  return map[jsDay] || "Понедельник"; // сб/вс → Понедельник
 }
 
+/* Вычисляем дату для каждого дня текущей учебной недели */
+function buildDayDates() {
+  const today = new Date();
+  const jsDay = today.getDay(); // 0=Вс ... 6=Сб
+  // Если выходной — считаем от понедельника следующей недели
+  const monday = new Date(today);
+  if (jsDay === 0)      monday.setDate(today.getDate() + 1);      // Вс → Пн
+  else if (jsDay === 6) monday.setDate(today.getDate() + 2);      // Сб → Пн
+  else                  monday.setDate(today.getDate() - (jsDay - 1)); // от текущего Пн
+
+  const dates = {};
+  DAYS.forEach((d, i) => {
+    const dt = new Date(monday);
+    dt.setDate(monday.getDate() + i);
+    const dd = String(dt.getDate()).padStart(2, "0");
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const yyyy = dt.getFullYear();
+    dates[d] = `${dd}.${mm}.${yyyy}`;
+  });
+  return dates;
+}
+
+const DAY_DATES = buildDayDates();
 let currentDay = getTodayDay();
-};
+}
 
 /* 🔐 ПАРОЛЬ АДМИН-ПАНЕЛИ */
 const ADMIN_PASSWORD = "vkms2026";
