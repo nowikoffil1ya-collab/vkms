@@ -782,18 +782,7 @@ const DAYS = ["Понедельник","Вторник","Среда","Четве
 const DAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт","Сб"];
 
 /* 🔐 ПАРОЛЬ АДМИН-ПАНЕЛИ */
-const ADMIN_PASSWORD_HASH = "d8b4a1c3e6f8...";  // ← хеш от vkms2026
-function tryLogin() {
-  const pwd = document.getElementById("pwdInput").value;
-  if (pwd === ADMIN_PASSWORD) {
-    closeLogin();
-    openAdminPanel();
-  } else {
-    toast("Неверный пароль", true);
-    document.getElementById("pwdInput").value = "";
-    document.getElementById("pwdInput").focus();
-  }
-}
+const ADMIN_PASSWORD = "vkms2026";
 
 const STORAGE_KEY = "schedule_app_vkms";
 const STORAGE_NID = "schedule_app_vkms_nid";
