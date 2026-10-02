@@ -463,7 +463,8 @@ function buildDayDates(weekOffset = 0) {
   return dates;
 }
 
-const ADMIN_PASSWORD = "vkms2026";
+const ADMIN_SALT = "vkms_s3cur3_s4lt_2026";
+const ADMIN_PASSWORD_HASH = "b2bbc151f35278c9cfe38057411f5097297eb801c21411c06207b05083155807";
 const WEEK_STORAGE_KEY = "schedule_app_vkms_weeks";
 const STORAGE_NID = "schedule_app_vkms_nid";
 const THEME_KEY = "schedule_theme";
@@ -903,10 +904,21 @@ function closeLogin() {
   document.getElementById("loginModal").classList.remove("open");
   document.getElementById("pwdInput").value = "";
 }
-function tryLogin() {
+async function sha256(str) {
+  const buf = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function tryLogin() {
   const pwd = document.getElementById("pwdInput").value;
-  if (pwd === ADMIN_PASSWORD) { closeLogin(); openAdminPanel(); }
-  else {
+  if (!pwd) return;
+
+  const hash = await sha256(ADMIN_SALT + pwd);
+  if (hash === ADMIN_PASSWORD_HASH) {
+    closeLogin();
+    openAdminPanel();
+  } else {
     toast("Неверный пароль", true);
     document.getElementById("pwdInput").value = "";
     document.getElementById("pwdInput").focus();
