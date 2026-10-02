@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#8baf78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Расписание">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Расписание занятий</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --accent: #8baf78; --accent-dark: #7ba168; --dark-green: #4a6b3d;
+    --light-green: #eaf3e4; --bg: #f4f7f1; --danger: #c96a5a;
+    --text: #2d3b26; --muted: #7a8a72; --glass: rgba(255,255,255,0.6);
+    --border: rgba(139,175,120,0.28); --shadow: 0 8px 24px rgba(74,107,61,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { min-height: 100%; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased;
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(circle at 8% 12%, rgba(139,175,120,0.22) 0%, transparent 42%),
+      radial-gradient(circle at 92% 8%, rgba(234,243,228,0.95) 0%, transparent 50%),
+      radial-gradient(circle at 82% 92%, rgba(139,175,120,0.16) 0%, transparent 45%),
+      radial-gradient(circle at 18% 82%, rgba(200,220,185,0.4) 0%, transparent 40%);
+    background-attachment: fixed;
+    padding: calc(16px + env(safe-area-inset-top)) 14px calc(40px + env(safe-area-inset-bottom));
+    overscroll-behavior: none; transition: background-color 0.3s, color 0.3s;
+  }
+  h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif; color: var(--dark-green); font-weight: 700; letter-spacing: -0.3px; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .header {
+    background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 20px; padding: 18px 20px;
+    margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; flex-wrap: wrap; box-shadow: var(--shadow);
+  }
+  .header h1 { font-size: 22px; line-height: 1.15; }
+  .header .subtitle { font-size: 13px; color: var(--muted); margin-top: 4px; font-weight: 500; }
+  .header .subtitle b { color: var(--dark-green); }
+  .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .user-info { font-size: 12px; color: var(--muted); padding: 4px 10px; background: rgba(255,255,255,0.6); border-radius: 8px; }
+  .week-switcher {
+    display: flex; gap: 8px; margin-bottom: 14px;
+    background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 16px; padding: 10px;
+    box-shadow: var(--shadow); justify-content: center;
+  }
+  .week-btn {
+    flex: 1; max-width: 240px; padding: 11px 16px;
+    border: 1.5px solid var(--border); background: rgba(255,255,255,0.6);
+    border-radius: 12px; font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .week-btn:hover { background: var(--light-green); color: var(--dark-green); }
+  .week-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 4px 12px rgba(139,175,120,0.4); }
+  .week-btn:active { transform: scale(0.97); }
+  body.dark .week-btn { background: rgba(40,55,40,0.7); color: var(--muted); }
+  body.dark .week-btn.active { background: var(--accent); color: #fff; }
+  .btn {
+    font-family: 'Inter', sans-serif; border: none; border-radius: 12px;
+    padding: 11px 18px; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: all 0.18s ease; display: inline-flex; align-items: center;
+    gap: 6px; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 4px 12px rgba(139,175,120,0.4); }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-ghost { background: rgba(255,255,255,0.55); color: var(--dark-green); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: #fff; border-color: var(--accent); }
+  .btn-ghost:active { transform: scale(0.97); }
+  .btn-danger { background: rgba(201,106,90,0.12); color: var(--danger); border: 1px solid rgba(201,106,90,0.3); }
+  .btn-danger:hover { background: var(--danger); color: #fff; }
+  .btn-danger:active { transform: scale(0.97); }
+  .btn-sm { padding: 7px 13px; font-size: 13px; border-radius: 9px; }
+  .theme-toggle { padding: 11px 14px; font-size: 16px; min-width: 44px; justify-content: center; }
+  .days-nav {
+    display: flex; gap: 8px; margin-bottom: 14px;
+    background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 16px; padding: 12px 10px;
+    box-shadow: var(--shadow); justify-content: center; flex-wrap: wrap;
+  }
+  .day-btn {
+    width: 46px; height: 46px; min-width: 46px;
+    border: 1.5px solid var(--border); background: rgba(255,255,255,0.6);
+    border-radius: 50%; cursor: pointer; font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 700; color: var(--muted);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); padding: 0;
+    position: relative; user-select: none;
+  }
+  .day-btn:hover { background: var(--light-green); color: var(--dark-green); border-color: var(--accent); }
+  .day-btn:active { transform: scale(0.92); }
+  .day-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 6px 16px rgba(139,175,120,0.55); transform: scale(1.08); }
+  .day-btn.active::after { content: ""; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 6px; height: 6px; background: var(--accent); border-radius: 50%; }
+  .filter-bar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 16px; padding: 10px 14px;
+    box-shadow: var(--shadow); flex-wrap: wrap;
+  }
+  .filter-bar label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .filter-bar select { flex: 1; min-width: 160px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.75); font-family: 'Inter', sans-serif; font-size: 14px; color: var(--text); cursor: pointer; }
+  .filter-bar select:focus { outline: none; border-color: var(--accent); }
+  .lessons-cards { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .lesson-card { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 16px; padding: 16px 18px; box-shadow: var(--shadow); animation: fadeUp 0.3s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .lesson-card .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .lesson-card .pair-badge { font-family: 'Playfair Display', serif; font-size: 13px; font-weight: 700; color: var(--dark-green); background: var(--light-green); padding: 4px 12px; border-radius: 8px; }
+  .lesson-card .room-badge { font-size: 12px; font-weight: 600; color: var(--dark-green); background: rgba(139,175,120,0.18); padding: 4px 11px; border-radius: 8px; }
+  .lesson-card .subject { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: var(--dark-green); margin-bottom: 10px; line-height: 1.25; }
+  .lesson-card .meta { display: flex; flex-direction: column; gap: 5px; font-size: 14px; color: var(--muted); }
+  .lesson-card .meta span::before { display: inline-block; margin-right: 6px; opacity: 0.75; }
+  .lesson-card .meta .group::before { content: "👥"; }
+  .lesson-card .meta .teacher::before { content: "👤"; }
+  .lesson-card .meta b { color: var(--text); font-weight: 600; }
+  .lessons-table-wrap { display: none; background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border); border-radius: 18px; padding: 0; box-shadow: var(--shadow); overflow: hidden; }
+  .lessons-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+  .lessons-table th, .lessons-table td { padding: 14px 16px; text-align: left; vertical-align: top; }
+  .lessons-table th { font-family: 'Inter', sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #ffffff; background: linear-gradient(180deg, #8baf78 0%, #7a9e68 100%); border-bottom: none; font-weight: 700; text-shadow: 0 1px 2px rgba(74,107,61,0.25); }
+  .lessons-table th:first-child { border-top-left-radius: 17px; }
+  .lessons-table th:last-child  { border-top-right-radius: 17px; }
+  .lessons-table th:nth-child(even) { background: linear-gradient(180deg, #82a670 0%, #71945f 100%); }
+  .lessons-table td { border-bottom: 1px solid rgba(139,175,120,0.18); color: var(--text); }
+  .lessons-table tr:last-child td { border-bottom: none; }
+  .lessons-table tr:hover td { background: rgba(234,243,228,0.55); }
+  .lessons-table .cell-pair { font-weight: 700; color: var(--dark-green); font-family: 'Playfair Display', serif; font-size: 16px; }
+  .lessons-table .cell-subject { font-weight: 600; color: var(--dark-green); }
+  .lessons-table .cell-muted { color: var(--muted); font-size: 13px; }
+  .lessons-table .dash { color: #c8d0c2; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px dashed var(--border); border-radius: 18px; }
+  .empty-state .emoji { font-size: 52px; margin-bottom: 14px; display: block; opacity: 0.85; }
+  .empty-state p { font-size: 15px; }
+  .loading { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 15px; }
+  .loading::before { content: "⏳ "; font-size: 28px; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(45,59,38,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1000; padding: 20px; overflow-y: auto; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal-overlay.open { display: block; }
+  .modal { background: linear-gradient(160deg, #ffffff 0%, #f7fbf4 100%); max-width: 780px; margin: 20px auto; border-radius: 22px; padding: 24px; box-shadow: 0 24px 60px rgba(45,59,38,0.28); border: 1px solid var(--border); animation: slideUp 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.1); }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(30px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .modal-lg { max-width: 1080px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .modal-header h2 { font-size: 20px; }
+  .close-btn { background: rgba(139,175,120,0.14); border: none; width: 38px; height: 38px; border-radius: 11px; font-size: 20px; color: var(--dark-green); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .close-btn:hover { background: var(--accent); color: #fff; }
+  .close-btn:active { transform: scale(0.92); }
+  .auth-tabs { display: flex; gap: 6px; margin-bottom: 18px; background: rgba(139,175,120,0.12); padding: 4px; border-radius: 12px; }
+  .auth-tab { flex: 1; padding: 10px; border: none; background: transparent; border-radius: 9px; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all 0.15s; }
+  .auth-tab.active { background: #fff; color: var(--dark-green); box-shadow: 0 2px 8px rgba(74,107,61,0.1); }
+  .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+  .form-field { display: flex; flex-direction: column; gap: 6px; }
+  .form-field.full { grid-column: 1 / -1; }
+  .form-field label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-field input, .form-field select { padding: 11px 14px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255,255,255,0.9); font-family: 'Inter', sans-serif; font-size: 15px; color: var(--text); transition: all 0.15s; }
+  .form-field input:focus, .form-field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139,175,120,0.15); }
+  .form-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  .admin-section { background: rgba(234,243,228,0.5); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  .admin-section h3 { font-size: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .dropzone { border: 2px dashed var(--border); border-radius: 14px; padding: 22px; text-align: center; cursor: pointer; transition: all 0.2s; background: rgba(255,255,255,0.5); }
+  .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: rgba(139,175,120,0.1); }
+  .dropzone .dz-icon { font-size: 34px; margin-bottom: 8px; display: block; opacity: 0.75; }
+  .dropzone .dz-text { font-size: 14px; font-weight: 600; color: var(--dark-green); }
+  .dropzone .dz-hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 14px 0; border-radius: 10px; overflow: hidden; }
+  .preview-table th, .preview-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  .preview-table th { background: rgba(139,175,120,0.14); color: var(--dark-green); font-weight: 600; font-size: 12px; }
+  .admin-list { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; padding-right: 4px; }
+  .admin-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.75); border: 1px solid var(--border); border-radius: 11px; font-size: 13px; }
+  .admin-item .info { flex: 1; line-height: 1.45; }
+  .admin-item .info b { color: var(--dark-green); }
+  .admin-item .info span { color: var(--muted); }
+  .admin-item .pair-tag { display: inline-block; background: var(--light-green); color: var(--dark-green); font-weight: 700; padding: 2px 8px; border-radius: 6px; font-size: 11px; margin-right: 8px; }
+  .admin-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+  /* Логи */
+  .log-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 14px; background: rgba(255,255,255,0.75); border: 1px solid var(--border); border-radius: 11px; font-size: 13px; }
+  .log-item .log-time { font-size: 11px; color: var(--muted); white-space: nowrap; min-width: 120px; padding-top: 3px; }
+  .log-item .log-user { font-weight: 700; color: var(--dark-green); min-width: 160px; max-width: 220px; }
+  .log-item .log-user .log-email { font-size: 11px; color: var(--muted); font-weight: 500; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  .log-item .log-action { flex: 1; padding-top: 2px; }
+  .log-item .log-action .log-action-label { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-right: 6px; text-transform: uppercase; }
+  .log-item .log-action .act-visit { background: rgba(139,175,120,0.12); color: var(--muted); font-style: italic; }
+  .log-item .log-action .act-login { background: rgba(139,175,120,0.25); color: var(--dark-green); }
+  .log-item .log-action .act-logout { background: rgba(122,138,114,0.25); color: var(--muted); }
+  .log-item .log-action .act-add { background: rgba(139,175,120,0.35); color: var(--dark-green); }
+  .log-item .log-action .act-delete { background: rgba(201,106,90,0.25); color: var(--danger); }
+  .log-item .log-action .act-upload { background: rgba(139,175,120,0.2); color: var(--dark-green); }
+  .log-item .log-action .act-reset { background: rgba(201,106,90,0.18); color: var(--danger); }
+  .log-item .log-action .act-register { background: rgba(139,175,120,0.2); color: var(--dark-green); }
+  .log-item .log-action .act-other { background: rgba(122,138,114,0.2); color: var(--muted); }
+
+  .toast { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--dark-green); color: #fff; padding: 13px 22px; border-radius: 12px; font-size: 14px; font-weight: 500; opacity: 0; pointer-events: none; transition: all 0.3s; z-index: 2000; box-shadow: 0 10px 30px rgba(74,107,61,0.35); max-width: 90%; text-align: center; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { background: var(--danger); }
+  body.dark { --accent: #7ba168; --accent-dark: #6b8f58; --dark-green: #a8c79a; --light-green: #2a3b22; --bg: #1a231a; --danger: #e07a6a; --text: #e8f0e3; --muted: #98a890; --glass: rgba(40,55,40,0.7); --border: rgba(139,175,120,0.3); --shadow: 0 8px 24px rgba(0,0,0,0.35);
+    background-color: #1a231a;
+    background-image:
+      radial-gradient(circle at 8% 12%, rgba(139,175,120,0.08) 0%, transparent 42%),
+      radial-gradient(circle at 92% 8%, rgba(40,55,40,0.6) 0%, transparent 50%),
+      radial-gradient(circle at 82% 92%, rgba(139,175,120,0.06) 0%, transparent 45%),
+      radial-gradient(circle at 18% 82%, rgba(60,80,55,0.4) 0%, transparent 40%);
+  }
+  body.dark h1, body.dark h2, body.dark h3 { color: var(--dark-green); }
+  body.dark .day-btn { background: rgba(40,55,40,0.7); color: var(--muted); }
+  body.dark .day-btn:hover { background: var(--light-green); color: var(--dark-green); }
+  body.dark .day-btn.active { color: #fff; }
+  body.dark .btn-ghost { background: rgba(40,55,40,0.6); color: var(--dark-green); }
+  body.dark .btn-ghost:hover { background: rgba(60,80,55,0.8); }
+  body.dark .filter-bar select, body.dark .form-field input, body.dark .form-field select { background: rgba(30,40,30,0.9); color: var(--text); }
+  body.dark .lesson-card { background: var(--glass); }
+  body.dark .modal { background: linear-gradient(160deg, #2a352a 0%, #1f281f 100%); }
+  body.dark .auth-tab { background: transparent; color: var(--muted); }
+  body.dark .auth-tab.active { background: rgba(60,80,55,0.9); color: var(--dark-green); }
+  body.dark .admin-section { background: rgba(30,40,30,0.6); }
+  body.dark .admin-item { background: rgba(35,48,35,0.8); }
+  body.dark .log-item { background: rgba(35,48,35,0.8); }
+  body.dark .dropzone { background: rgba(30,40,30,0.6); }
+  body.dark .preview-table th { background: rgba(139,175,120,0.18); }
+  body.dark .lessons-table tr:hover td { background: rgba(50,70,45,0.5); }
+  body.dark .empty-state { background: var(--glass); }
+  body.dark .user-info { background: rgba(40,55,40,0.7); }
+  @media (min-width: 768px) {
+    body { padding: 20px 16px 60px; }
+    .header { padding: 22px 26px; }
+    .header h1 { font-size: 26px; }
+    .days-nav { padding: 14px 16px; gap: 10px; }
+    .day-btn { width: 48px; height: 48px; min-width: 48px; }
+    .lessons-cards { display: none; }
+    .lessons-table-wrap { display: block; }
+    .lessons-table-wrap.is-empty { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="header">
+    <div>
+      <h1>Расписание занятий</h1>
+      <div class="subtitle">День: <b id="headerDay">Четверг</b> <span id="headerDate"></span> <span id="headerCount"></span></div>
+    </div>
+    <div class="header-actions" id="headerActions">
+      <button class="btn btn-ghost theme-toggle" id="themeBtn" onclick="toggleTheme()" title="Сменить тему">🌙</button>
+      <button class="btn btn-ghost" onclick="openAuthModal()">👤 Войти</button>
+    </div>
+  </header>
+
+  <div class="week-switcher">
+    <button class="week-btn active" id="weekBtn0" onclick="switchWeek(0)">📅 Эта неделя</button>
+    <button class="week-btn" id="weekBtn1" onclick="switchWeek(1)">📅 Следующая неделя</button>
+  </div>
+
+  <nav class="days-nav" id="daysNav"></nav>
+
+  <div class="filter-bar">
+    <label for="groupFilter">Группа</label>
+    <select id="groupFilter" onchange="renderAll()">
+      <option value="all">Все группы</option>
+    </select>
+  </div>
+
+  <div id="cardsView" class="lessons-cards"><div class="loading">Загрузка расписания</div></div>
+
+  <div id="tableView" class="lessons-table-wrap">
+    <table class="lessons-table">
+      <thead>
+        <tr>
+          <th>№ каб.</th>
+          <th>Ф.И.О.</th>
+          <th>1 пара</th>
+          <th>2 пара</th>
+          <th>3 пара</th>
+          <th>4 пара</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- МОДАЛКА ВХОДА -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <h2 id="authTitle">Вход</h2>
+      <button class="close-btn" onclick="closeAuthModal()">×</button>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tabLogin" onclick="switchAuthTab('login')">Вход</button>
+      <button class="auth-tab" id="tabRegister" onclick="switchAuthTab('register')">Регистрация</button>
+    </div>
+    <div id="registerFields" style="display:none">
+      <div class="form-field full" style="margin-bottom:12px">
+        <label for="usernameInput">Имя пользователя (видно всем)</label>
+        <input type="text" id="usernameInput" placeholder="Ваш_Логин" autocomplete="username">
+      </div>
+    </div>
+    <div class="form-field full" style="margin-bottom:12px">
+      <label for="emailInput">Email</label>
+      <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="form-field full" style="margin-bottom:18px">
+      <label for="pwdInput">Пароль</label>
+      <input type="password" id="pwdInput" placeholder="Минимум 6 символов" autocomplete="current-password" onkeydown="if(event.key==='Enter') doAuthAction()">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeAuthModal()">Отмена</button>
+      <button class="btn btn-primary" id="authActionBtn" onclick="doAuthAction()">Войти</button>
+    </div>
+    <div id="authMsg" style="margin-top:14px;font-size:13px;color:var(--muted);text-align:center"></div>
+  </div>
+</div>
+
+<!-- АДМИН -->
+<div class="modal-overlay" id="adminModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2>⚙️ Панель администратора</h2>
+      <button class="close-btn" onclick="closeAdmin()">×</button>
+    </div>
+
+    <div class="admin-toolbar">
+      <button class="btn btn-ghost btn-sm" onclick="exportJSON()">💾 Экспорт JSON</button>
+      <button class="btn btn-danger btn-sm" onclick="clearDay()">🗑 Очистить день</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetAll()">♻️ Сбросить всё</button>
+    </div>
+
+    <div class="admin-section" style="background: rgba(139,175,120,0.18); border-color: var(--accent);">
+      <h3>📅 Какая неделя редактируется?</h3>
+      <select id="adminWeekSelect" onchange="switchWeekFromAdmin(this.value)">
+        <option value="0">📅 Эта неделя</option>
+        <option value="1">📅 Следующая неделя</option>
+      </select>
+    </div>
+
+    <div class="form-field full" style="margin-bottom:16px">
+      <label>Редактируем день</label>
+      <select id="adminDaySelect" onchange="renderAdminList()"></select>
+    </div>
+
+    <div class="admin-section">
+      <h3>➕ Добавить занятие вручную</h3>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Номер пары</label>
+          <select id="addPair">
+            <option value="1">1 пара</option>
+            <option value="2">2 пара</option>
+            <option value="3">3 пара</option>
+            <option value="4">4 пара</option>
+            <option value="5">5 пара</option>
+            <option value="6">6 пара</option>
+          </select>
+        </div>
+        <div class="form-field"><label>Кабинет</label><input id="addRoom" placeholder="213"></div>
+        <div class="form-field"><label>Преподаватель</label><input id="addTeacher" placeholder="Иванов И.И."></div>
+        <div class="form-field"><label>Группа</label><input id="addGroup" placeholder="14-ЭО-25"></div>
+        <div class="form-field full"><label>Предмет</label><input id="addSubject" placeholder="Математика"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="addPairManual()">Добавить</button>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h3>📊 Загрузить таблицу Excel / CSV</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+        Одна строка = одна пара. Столбцы: <b>Пара → Кабинет → Преподаватель → Группа → Предмет</b>.
+        Форматы: .xlsx, .xls, .csv. Данные добавятся в день: <span id="uploadDayLabel" style="color:var(--dark-green);font-weight:600"></span>.
+      </p>
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('excelFile').click()">
+        <span class="dz-icon">📁</span>
+        <div class="dz-text">Нажмите или перетащите файл сюда</div>
+        <div class="dz-hint">.xlsx, .xls, .csv</div>
+      </div>
+      <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" style="display:none">
+      <div id="previewArea"></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>📋 Занятия на выбранный день</h3>
+      <div class="admin-list" id="adminList"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ЛОГИ -->
+<div class="modal-overlay" id="logsModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2>📜 Журнал действий</h2>
+      <button class="close-btn" onclick="closeLogs()">×</button>
+    </div>
+    <div class="admin-toolbar">
+      <button class="btn btn-ghost btn-sm" onclick="loadLogs()">🔄 Обновить</button>
+      <button class="btn btn-danger btn-sm" onclick="clearLogs()">🗑 Очистить журнал</button>
+    </div>
+    <div class="admin-list" id="logsList" style="max-height:560px">
+      <p style="color:var(--muted);text-align:center;padding:20px">Загрузка…</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   🔑 КЛЮЧИ SUPABASE
+   ============================================================ */
+const SUPABASE_URL = "https://qmifdeokjxuhnbhvlcep.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_9O0ccc5oTIDfwNBWVkV-6Q_2p1Ois0m";
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const DAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница"];
+const DAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт"];
+const MONTHS = ["января","февраля","марта","апреля","мая","июня",
+                "июля","августа","сентября","октября","ноября","декабря"];
+const GROUP_PATTERN = /^\d{1,3}-[А-Яа-яA-Za-z]+-\d{2}$/;
+const THEME_KEY = "schedule_theme";
+
+let currentUser = null;
+let currentWeekOffset = 0;
+let schedulesByWeek = { 0: [], 1: [] };
+let currentDay = getTodayDay();
+let DAY_DATES = {};
+let parsedPreview = [];
+
+/* ============================================================
+   УТИЛИТЫ
+   ============================================================ */
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+function toast(msg, isError = false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.toggle("error", isError);
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2400);
+}
+function getTodayDay() {
+  const jsDay = new Date().getDay();
+  const map = { 1: "Понедельник", 2: "Вторник", 3: "Среда", 4: "Четверг", 5: "Пятница" };
+  return map[jsDay] || "Понедельник";
+}
+function buildDayDates(weekOffset = 0) {
+  const today = new Date();
+  const jsDay = today.getDay();
+  const monday = new Date(today);
+  if (jsDay === 0)      monday.setDate(today.getDate() + 1);
+  else if (jsDay === 6) monday.setDate(today.getDate() + 2);
+  else                  monday.setDate(today.getDate() - (jsDay - 1));
+  monday.setDate(monday.getDate() + weekOffset * 7);
+  const dates = {};
+  DAYS.forEach((d, i) => {
+    const dt = new Date(monday);
+    dt.setDate(monday.getDate() + i);
+    dates[d] = `${dt.getDate()} ${MONTHS[dt.getMonth()]}`;
+  });
+  return dates;
+}
+function isAdmin() { return currentUser && currentUser.role === "admin"; }
+function getWeekList() { return schedulesByWeek[currentWeekOffset] || []; }
+
+function formatDateTime(iso) {
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mn = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}.${mm}.${yyyy} ${hh}:${mn}`;
+}
+
+/* ============================================================
+   ЛОГИ
+   ============================================================ */
+async function writeLog(action, details = "") {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const userId = session?.user?.id || null;
+    const email  = session?.user?.email || (currentUser ? currentUser.email : null);
+    const username = currentUser ? currentUser.username : "Гость";
+
+    await supabaseClient.from("logs").insert({
+      user_id: userId,
+      username,
+      email,
+      action,
+      details
+    });
+  } catch (e) {
+    console.warn("Не удалось записать лог:", e);
+  }
+}
+
+async function logVisit() {
+  try {
+    if (sessionStorage.getItem("visit_logged") === "1") return;
+    sessionStorage.setItem("visit_logged", "1");
+
+    const path = window.location.pathname;
+    const referrer = document.referrer || "прямой заход";
+    const ua = navigator.userAgent;
+    let browser = "неизвестный";
+    if (/YaBrowser/i.test(ua)) browser = "Яндекс.Браузер";
+    else if (/Edg/i.test(ua)) browser = "Edge";
+    else if (/OPR|Opera/i.test(ua)) browser = "Opera";
+    else if (/Chrome/i.test(ua)) browser = "Chrome";
+    else if (/Firefox/i.test(ua)) browser = "Firefox";
+    else if (/Safari/i.test(ua)) browser = "Safari";
+    const mobile = /Mobi|Android|iPhone|iPad/i.test(ua) ? "моб." : "ПК";
+
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const userId = session?.user?.id || null;
+    const email  = session?.user?.email || (currentUser ? currentUser.email : null);
+    const username = currentUser ? currentUser.username : "Гость";
+
+    await supabaseClient.from("logs").insert({
+      user_id: userId,
+      username,
+      email,
+      action: "Визит",
+      details: `${path} · ${browser}, ${mobile} · Источник: ${referrer.slice(0, 80)}`
+    });
+  } catch (e) {
+    console.warn("Не удалось записать визит:", e);
+  }
+}
+
+async function loadLogs() {
+  const el = document.getElementById("logsList");
+  el.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px">Загрузка…</p>';
+
+  const { data, error } = await supabaseClient
+    .from("logs")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  if (error) {
+    el.innerHTML = '<p style="color:var(--danger);text-align:center;padding:20px">Ошибка: ' + escapeHtml(error.message) + '</p>';
+    return;
+  }
+  if (!data || !data.length) {
+    el.innerHTML = '<p style="color:var(--muted);text-align:center;padding:20px">Журнал пуст</p>';
+    return;
+  }
+
+  el.innerHTML = data.map(row => {
+    const act = (row.action || "").toLowerCase();
+    let cls = "act-other";
+    if (act.includes("визит")) cls = "act-visit";
+    else if (act.includes("вход") || act.includes("login")) cls = "act-login";
+    else if (act.includes("выход") || act.includes("logout")) cls = "act-logout";
+    else if (act.includes("регистрация") || act.includes("register")) cls = "act-register";
+    else if (act.includes("удал") || act.includes("delete")) cls = "act-delete";
+    else if (act.includes("загруз") || act.includes("upload")) cls = "act-upload";
+    else if (act.includes("сброс") || act.includes("reset") || act.includes("очист")) cls = "act-reset";
+    else if (act.includes("добав") || act.includes("add")) cls = "act-add";
+
+    const emailLine = row.email ? `<div class="log-email">${escapeHtml(row.email)}</div>` : "";
+    return `
+      <div class="log-item">
+        <div class="log-time">${formatDateTime(row.created_at)}</div>
+        <div class="log-user">
+          ${row.user_id ? "👤" : "🕶"} ${escapeHtml(row.username || "—")}
+          ${emailLine}
+        </div>
+        <div class="log-action">
+          <span class="log-action-label ${cls}">${escapeHtml(row.action || "")}</span>
+          ${escapeHtml(row.details || "")}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function openLogs() {
+  if (!isAdmin()) { toast("Только для админа", true); return; }
+  document.getElementById("logsModal").classList.add("open");
+  document.body.style.overflow = "hidden";
+  loadLogs();
+}
+function closeLogs() {
+  document.getElementById("logsModal").classList.remove("open");
+  document.body.style.overflow = "";
+}
+async function clearLogs() {
+  if (!isAdmin()) return;
+  if (!confirm("Удалить ВСЕ записи журнала?")) return;
+  const { error } = await supabaseClient.from("logs").delete().neq("id", 0);
+  if (error) { toast("Ошибка: " + error.message, true); return; }
+  toast("Журнал очищен");
+  loadLogs();
+}
+
+/* ============================================================
+   АУТЕНТИФИКАЦИЯ
+   ============================================================ */
+async function checkSession() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session && session.user) {
+    await loadProfile(session.user);
+  } else {
+    currentUser = null;
+  }
+  updateHeaderUI();
+}
+
+async function loadProfile(user) {
+  const { data, error } = await supabaseClient
+    .from("profiles").select("username, role").eq("id", user.id).maybeSingle();
+
+  if (error || !data) {
+    const fallbackName = (user.user_metadata && user.user_metadata.username) || user.email.split("@")[0];
+    const { data: created } = await supabaseClient
+      .from("profiles").insert({ id: user.id, username: fallbackName, role: "guest" })
+      .select().single();
+    currentUser = {
+      email: user.email,
+      username: (created && created.username) || fallbackName,
+      role: (created && created.role) || "guest"
+    };
+  } else {
+    currentUser = { email: user.email, username: data.username, role: data.role };
+  }
+}
+
+function openAuthModal() {
+  document.getElementById("authModal").classList.add("open");
+  switchAuthTab("login");
+  setTimeout(() => document.getElementById("emailInput").focus(), 100);
+}
+function closeAuthModal() {
+  document.getElementById("authModal").classList.remove("open");
+  document.getElementById("emailInput").value = "";
+  document.getElementById("pwdInput").value = "";
+  document.getElementById("usernameInput").value = "";
+  document.getElementById("authMsg").textContent = "";
+}
+let authMode = "login";
+function switchAuthTab(mode) {
+  authMode = mode;
+  const isLogin = mode === "login";
+  document.getElementById("tabLogin").classList.toggle("active", isLogin);
+  document.getElementById("tabRegister").classList.toggle("active", !isLogin);
+  document.getElementById("registerFields").style.display = isLogin ? "none" : "block";
+  document.getElementById("authTitle").textContent = isLogin ? "Вход" : "Регистрация";
+  document.getElementById("authActionBtn").textContent = isLogin ? "Войти" : "Зарегистрироваться";
+  document.getElementById("pwdInput").setAttribute("autocomplete", isLogin ? "current-password" : "new-password");
+  document.getElementById("authMsg").textContent = "";
+  document.getElementById("authMsg").style.color = "var(--muted)";
+}
+
+async function doAuthAction() {
+  const email = document.getElementById("emailInput").value.trim();
+  const pwd = document.getElementById("pwdInput").value;
+  const username = document.getElementById("usernameInput").value.trim();
+  const msgEl = document.getElementById("authMsg");
+
+  if (!email || !pwd) { msgEl.style.color = "var(--danger)"; msgEl.textContent = "Заполните email и пароль"; return; }
+  if (pwd.length < 6) { msgEl.style.color = "var(--danger)"; msgEl.textContent = "Пароль минимум 6 символов"; return; }
+
+  msgEl.style.color = "var(--muted)";
+  msgEl.textContent = "⏳ Подождите…";
+
+  try {
+    if (authMode === "login") {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pwd });
+      if (error) throw error;
+      await loadProfile(data.user);
+      closeAuthModal();
+      updateHeaderUI();
+      await writeLog("Вход", `Логин: ${data.user.email}`);
+      toast("Вход выполнен ✓");
+    } else {
+      if (!username) { msgEl.style.color = "var(--danger)"; msgEl.textContent = "Укажите имя пользователя"; return; }
+      if (!/^[a-zA-Z0-9_\-\.]{2,30}$/.test(username)) {
+        msgEl.style.color = "var(--danger)";
+        msgEl.textContent = "Имя: 2–30 символов, латиница/цифры/_/-/.";
+        return;
+      }
+      const { data, error } = await supabaseClient.auth.signUp({
+        email, password: pwd,
+        options: { data: { username } }
+      });
+      if (error) throw error;
+      if (data.user && !data.session) {
+        msgEl.style.color = "var(--accent)";
+        msgEl.textContent = "✅ Проверьте почту — пришло письмо для подтверждения.";
+        return;
+      }
+      await loadProfile(data.user);
+      closeAuthModal();
+      updateHeaderUI();
+      await writeLog("Регистрация", `Новый пользователь ${username} (${email})`);
+      toast("Регистрация выполнена ✓");
+    }
+  } catch (err) {
+    console.error(err);
+    msgEl.style.color = "var(--danger)";
+    msgEl.textContent = "❌ " + (err.message || "Ошибка");
+  }
+}
+
+async function logout() {
+  if (!confirm("Выйти из аккаунта?")) return;
+  const name = currentUser ? currentUser.username : "—";
+  const mail = currentUser ? currentUser.email : "—";
+  await writeLog("Выход", `Пользователь ${name} (${mail})`);
+  await supabaseClient.auth.signOut();
+  currentUser = null;
+  updateHeaderUI();
+  toast("Выход выполнен");
+}
+
+function updateHeaderUI() {
+  const actions = document.getElementById("headerActions");
+  const themeBtn = document.getElementById("themeBtn").outerHTML;
+
+  if (currentUser) {
+    const adminBtn = isAdmin() ? `<button class="btn btn-primary" onclick="openAdmin()">⚙️ Админка</button>` : "";
+    const logsBtn = isAdmin() ? `<button class="btn btn-ghost" onclick="openLogs()">📜 Логи</button>` : "";
+    actions.innerHTML = `
+      ${themeBtn}
+      <span class="user-info" title="${escapeHtml(currentUser.email)}">
+        ${currentUser.role === "admin" ? "👑" : "👤"} ${escapeHtml(currentUser.username)}
+      </span>
+      ${logsBtn}
+      ${adminBtn}
+      <button class="btn btn-ghost" onclick="logout()">Выйти</button>
+    `;
+  } else {
+    actions.innerHTML = `
+      ${themeBtn}
+      <button class="btn btn-ghost" onclick="openAuthModal()">👤 Войти</button>
+    `;
+  }
+  document.getElementById("themeBtn").onclick = toggleTheme;
+  applyTheme(localStorage.getItem(THEME_KEY) || "light");
+}
+
+/* ============================================================
+   ЗАГРУЗКА РАСПИСАНИЯ
+   ============================================================ */
+async function loadScheduleFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("schedule").select("*")
+    .order("week", { ascending: true }).order("pair", { ascending: true });
+
+  if (error) {
+    console.error(error);
+    toast("Ошибка загрузки: " + error.message, true);
+    schedulesByWeek = { 0: [], 1: [] };
+    return;
+  }
+  schedulesByWeek = { 0: [], 1: [] };
+  (data || []).forEach(row => {
+    const w = row.week === 1 ? 1 : 0;
+    schedulesByWeek[w].push({
+      id: row.id, week: w, day: row.day, pair: row.pair,
+      room: row.room, teacher: row.teacher, group: row.grp, subject: row.subject
+    });
+  });
+}
+
+/* ============================================================
+   ОТОБРАЖЕНИЕ
+   ============================================================ */
+function renderDaysNav() {
+  const nav = document.getElementById("daysNav");
+  nav.innerHTML = "";
+  DAYS.forEach((d, i) => {
+    const b = document.createElement("button");
+    b.className = "day-btn" + (d === currentDay ? " active" : "");
+    b.textContent = DAYS_SHORT[i];
+    b.title = d;
+    b.onclick = () => { currentDay = d; renderAll(); };
+    nav.appendChild(b);
+  });
+}
+function getAllGroups() {
+  const set = new Set();
+  Object.values(schedulesByWeek).forEach(arr => {
+    arr.forEach(p => {
+      if (p.group && GROUP_PATTERN.test(p.group.trim())) set.add(p.group.trim());
+    });
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, "ru", { numeric: true }));
+}
+function updateGroupFilter() {
+  const sel = document.getElementById("groupFilter");
+  const prev = sel.value;
+  const groups = getAllGroups();
+  sel.innerHTML = '<option value="all">Все группы</option>' +
+    groups.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+  if (groups.includes(prev) || prev === "all") sel.value = prev;
+}
+function getFilteredList() {
+  const filter = document.getElementById("groupFilter").value;
+  let list = getWeekList().filter(p => p.day === currentDay);
+  if (filter !== "all") list = list.filter(p => p.group === filter);
+  return list.sort((a, b) => a.pair - b.pair);
+}
+function renderCards(list) {
+  const el = document.getElementById("cardsView");
+  const filter = document.getElementById("groupFilter").value;
+  const showGroup = filter === "all";
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><span class="emoji">🌿</span><p>На этот день занятий нет</p></div>`;
+    return;
+  }
+  el.innerHTML = list.map(p => `
+    <div class="lesson-card">
+      <div class="card-top">
+        <span class="pair-badge">${p.pair} пара</span>
+        <span class="room-badge">каб. ${escapeHtml(p.room)}</span>
+      </div>
+      <div class="subject">${escapeHtml(p.subject)}</div>
+      <div class="meta">
+        ${showGroup ? `<span class="group">Группа: <b>${escapeHtml(p.group)}</b></span>` : ""}
+        <span class="teacher">Преподаватель: <b>${escapeHtml(p.teacher)}</b></span>
+      </div>
+    </div>
+  `).join("");
+}
+function renderTable(list) {
+  const tbody = document.getElementById("tableBody");
+  const wrap = document.getElementById("tableView");
+  if (!list.length) { tbody.innerHTML = ""; wrap.classList.add("is-empty"); return; }
+  wrap.classList.remove("is-empty");
+  const byRoom = {};
+  list.forEach(p => {
+    if (!byRoom[p.room]) byRoom[p.room] = { room: p.room, teacher: p.teacher, pairs: {} };
+    byRoom[p.room].pairs[p.pair] = p;
+    if (!byRoom[p.room].teacher) byRoom[p.room].teacher = p.teacher;
+  });
+  const rows = Object.values(byRoom).sort((a, b) =>
+    String(a.room).localeCompare(String(b.room), "ru", { numeric: true })
+  );
+  tbody.innerHTML = rows.map(r => {
+    const cell = n => {
+      const p = r.pairs[n];
+      if (!p) return '<span class="dash">—</span>';
+      return `<span class="cell-subject">${escapeHtml(p.subject)}</span><br><span class="cell-muted">${escapeHtml(p.group)}</span>`;
+    };
+    return `<tr>
+      <td class="cell-pair">${escapeHtml(r.room)}</td>
+      <td>${escapeHtml(r.teacher)}</td>
+      <td>${cell(1)}</td><td>${cell(2)}</td><td>${cell(3)}</td><td>${cell(4)}</td>
+    </tr>`;
+  }).join("");
+}
+function renderHeader() {
+  document.getElementById("headerDay").textContent = currentDay;
+  const date = DAY_DATES[currentDay] || "";
+  document.getElementById("headerDate").textContent = date ? `· ${date}` : "";
+  const n = getWeekList().filter(p => p.day === currentDay).length;
+  document.getElementById("headerCount").textContent = n ? `· ${n} занятий` : "";
+}
+function renderAll() {
+  renderDaysNav();
+  renderHeader();
+  updateGroupFilter();
+  const list = getFilteredList();
+  renderCards(list);
+  renderTable(list);
+}
+
+/* ============================================================
+   НЕДЕЛИ
+   ============================================================ */
+function switchWeek(offset) {
+  currentWeekOffset = offset;
+  DAY_DATES = buildDayDates(offset);
+  document.getElementById("weekBtn0").classList.toggle("active", offset === 0);
+  document.getElementById("weekBtn1").classList.toggle("active", offset === 1);
+  renderAll();
+}
+function switchWeekFromAdmin(val) {
+  switchWeek(parseInt(val));
+  renderAdminList();
+}
+
+/* ============================================================
+   АДМИНКА
+   ============================================================ */
+function openAdmin() {
+  if (!isAdmin()) { toast("Доступ только для админа", true); return; }
+  document.getElementById("adminModal").classList.add("open");
+  document.body.style.overflow = "hidden";
+  document.getElementById("adminWeekSelect").value = String(currentWeekOffset);
+  initAdminDaySelect();
+  renderAdminList();
+}
+function closeAdmin() {
+  document.getElementById("adminModal").classList.remove("open");
+  document.body.style.overflow = "";
+  renderAll();
+}
+function initAdminDaySelect() {
+  const sel = document.getElementById("adminDaySelect");
+  sel.innerHTML = DAYS.map(d =>
+    `<option value="${d}" ${d === currentDay ? "selected" : ""}>${d}</option>`
+  ).join("");
+  sel.value = currentDay;
+}
+function renderAdminList() {
+  const day = document.getElementById("adminDaySelect").value;
+  const weekLabel = currentWeekOffset === 0 ? "Эта неделя" : "Следующая неделя";
+  document.getElementById("uploadDayLabel").textContent = `${day} (${weekLabel})`;
+  const list = getWeekList().filter(p => p.day === day).sort((a, b) => a.pair - b.pair);
+  const el = document.getElementById("adminList");
+  if (!list.length) {
+    el.innerHTML = '<p style="color:var(--muted);padding:14px;text-align:center;font-size:13px">На этот день занятий нет</p>';
+    return;
+  }
+  el.innerHTML = list.map(p => `
+    <div class="admin-item">
+      <div class="info">
+        <span class="pair-tag">${p.pair} пара</span>
+        <b>${escapeHtml(p.subject)}</b><br>
+        <span>каб. ${escapeHtml(p.room)} · гр. ${escapeHtml(p.group)} · ${escapeHtml(p.teacher)}</span>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="deletePair(${p.id})">Удалить</button>
+    </div>
+  `).join("");
+}
+async function addPairManual() {
+  if (!isAdmin()) return;
+  const day = document.getElementById("adminDaySelect").value;
+  const pair = parseInt(document.getElementById("addPair").value);
+  const room = document.getElementById("addRoom").value.trim();
+  const teacher = document.getElementById("addTeacher").value.trim();
+  const group = document.getElementById("addGroup").value.trim();
+  const subject = document.getElementById("addSubject").value.trim();
+  if (!room || !teacher || !group || !subject) { toast("Заполните все поля", true); return; }
+
+  const { error } = await supabaseClient.from("schedule").insert({
+    week: currentWeekOffset, day, pair, room, teacher, grp: group, subject
+  });
+  if (error) { toast("Ошибка: " + error.message, true); return; }
+  ["addRoom","addTeacher","addGroup","addSubject"].forEach(id => document.getElementById(id).value = "");
+  await loadScheduleFromSupabase();
+  renderAdminList();
+  renderAll();
+  await writeLog("Добавлено", `${day}, ${pair} пара: ${subject} (гр. ${group}, каб. ${room})`);
+  toast("Добавлено ✓");
+}
+async function deletePair(id) {
+  if (!isAdmin()) return;
+  if (!confirm("Удалить эту пару?")) return;
+  const p = getWeekList().find(x => x.id === id);
+  const { error } = await supabaseClient.from("schedule").delete().eq("id", id);
+  if (error) { toast("Ошибка: " + error.message, true); return; }
+  await loadScheduleFromSupabase();
+  renderAdminList();
+  renderAll();
+  if (p) await writeLog("Удалено", `${p.day}, ${p.pair} пара: ${p.subject} (гр. ${p.group})`);
+  toast("Удалено");
+}
+
+/* ============================================================
+   EXCEL / CSV
+   ============================================================ */
+const dropzone = document.getElementById("dropzone");
+const excelInput = document.getElementById("excelFile");
+
+["dragenter","dragover"].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add("dragover"); })
+);
+["dragleave","drop"].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove("dragover"); })
+);
+dropzone.addEventListener("drop", e => {
+  if (e.dataTransfer.files.length) handleExcelFile(e.dataTransfer.files[0]);
+});
+excelInput.addEventListener("change", e => {
+  if (e.target.files.length) handleExcelFile(e.target.files[0]);
+  e.target.value = "";
+});
+
+function handleExcelFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const buffer = ev.target.result;
+      const fileName = (file.name || "").toLowerCase();
+      const isCSV = fileName.endsWith(".csv") || file.type === "text/csv";
+      let parsed = [];
+      if (isCSV) {
+        let utf8Text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+        if (utf8Text.charCodeAt(0) === 0xFEFF) utf8Text = utf8Text.slice(1);
+        let text = utf8Text;
+        if (/Ð[\u0080-\u00BF]|Ñ[\u0080-\u00BF]/.test(utf8Text)) {
+          try { text = new TextDecoder("windows-1251").decode(buffer); } catch (e) {}
+        }
+        parsed = parseCSVText(text);
+      } else {
+        const wb = XLSX.read(new Uint8Array(buffer), { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        rows.forEach((row, idx) => {
+          if (idx === 0 && isNaN(parseInt(row[0]))) return;
+          if (row.length < 5) return;
+          const pair = parseInt(row[0]);
+          if (!pair || pair < 1 || pair > 8) return;
+          const room = String(row[1]).trim();
+          const teacher = String(row[2]).trim();
+          const group = String(row[3]).trim();
+          const subject = String(row[4]).trim();
+          if (!room || !teacher || !group || !subject) return;
+          parsed.push({ pair, room, teacher, group, subject });
+        });
+      }
+      if (!parsed.length) { toast("В файле нет подходящих данных", true); return; }
+      parsedPreview = parsed;
+      showPreview(parsed, file.name);
+    } catch (err) {
+      toast("Ошибка чтения: " + err.message, true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function parseCSVText(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const parsed = [];
+  lines.forEach(line => {
+    let parts = line.split(";").map(s => s.trim().replace(/^["']|["']$/g, ""));
+    if (parts.length !== 5) parts = line.split(",").map(s => s.trim().replace(/^["']|["']$/g, ""));
+    if (parts.length !== 5) return;
+    const pair = parseInt(parts[0]);
+    if (!pair || pair < 1 || pair > 8) return;
+    const room = parts[1], teacher = parts[2], group = parts[3], subject = parts[4];
+    if (!room || !teacher || !group || !subject) return;
+    parsed.push({ pair, room, teacher, group, subject });
+  });
+  return parsed;
+}
+function showPreview(list, filename) {
+  const area = document.getElementById("previewArea");
+  const rows = list.slice(0, 10).map(p => `
+    <tr>
+      <td>${p.pair}</td>
+      <td>${escapeHtml(p.room)}</td>
+      <td>${escapeHtml(p.teacher)}</td>
+      <td>${escapeHtml(p.group)}</td>
+      <td>${escapeHtml(p.subject)}</td>
+    </tr>
+  `).join("");
+  const more = list.length > 10
+    ? `<p style="font-size:12px;color:var(--muted);text-align:center">...и ещё ${list.length - 10} строк</p>` : "";
+  area.innerHTML = `
+    <p style="margin-top:14px;font-size:13px;color:var(--dark-green);font-weight:600">
+      📄 ${escapeHtml(filename)} — найдено ${list.length} строк:
+    </p>
+    <table class="preview-table">
+      <thead><tr><th>Пара</th><th>Каб.</th><th>Преподаватель</th><th>Группа</th><th>Предмет</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${more}
+    <div class="form-actions" style="margin-top:14px">
+      <button class="btn btn-ghost" onclick="cancelPreview()">Отмена</button>
+      <button class="btn btn-primary" onclick="confirmUpload()">Добавить всё</button>
+    </div>
+  `;
+}
+function cancelPreview() {
+  parsedPreview = [];
+  document.getElementById("previewArea").innerHTML = "";
+}
+async function confirmUpload() {
+  if (!parsedPreview.length || !isAdmin()) return;
+  const day = document.getElementById("adminDaySelect").value;
+  const rows = parsedPreview.map(p => ({
+    week: currentWeekOffset, day, pair: p.pair,
+    room: p.room, teacher: p.teacher, grp: p.group, subject: p.subject
+  }));
+  const { error } = await supabaseClient.from("schedule").insert(rows);
+  if (error) { toast("Ошибка: " + error.message, true); return; }
+  const n = parsedPreview.length;
+  parsedPreview = [];
+  document.getElementById("previewArea").innerHTML = "";
+  await loadScheduleFromSupabase();
+  renderAdminList();
+  renderAll();
+  await writeLog("Загрузка CSV", `${n} пар в ${day} (${currentWeekOffset === 0 ? "эта" : "следующая"} неделя)`);
+  toast(`Загружено ${n} пар ✓`);
+}
+
+/* ============================================================
+   ЭКСПОРТ / СБРОС
+   ============================================================ */
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(schedulesByWeek, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `schedule-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("Экспортировано");
+}
+async function clearDay() {
+  if (!isAdmin()) return;
+  const day = document.getElementById("adminDaySelect").value;
+  if (!confirm(`Очистить все занятия в "${day}" этой недели?`)) return;
+  const { error } = await supabaseClient
+    .from("schedule").delete()
+    .eq("week", currentWeekOffset).eq("day", day);
+  if (error) { toast("Ошибка: " + error.message, true); return; }
+  await loadScheduleFromSupabase();
+  renderAdminList();
+  renderAll();
+  await writeLog("Очистка дня", `${day} (${currentWeekOffset === 0 ? "эта" : "следующая"} неделя)`);
+  toast("Очищено");
+}
+async function resetAll() {
+  if (!isAdmin()) return;
+  if (!confirm("УДАЛИТЬ ВСЁ расписание (обе недели)?")) return;
+  const { error } = await supabaseClient.from("schedule").delete().neq("id", 0);
+  if (error) { toast("Ошибка: " + error.message, true); return; }
+  await loadScheduleFromSupabase();
+  renderAdminList();
+  renderAll();
+  await writeLog("Сброс", "Всё расписание удалено");
+  toast("Сброшено");
+}
+
+/* ============================================================
+   ТЕМА
+   ============================================================ */
+function applyTheme(theme) {
+  const btn = document.getElementById("themeBtn");
+  if (!btn) return;
+  if (theme === "dark") { document.body.classList.add("dark"); btn.textContent = "☀️"; }
+  else { document.body.classList.remove("dark"); btn.textContent = "🌙"; }
+}
+function toggleTheme() {
+  const isDark = document.body.classList.contains("dark");
+  const next = isDark ? "light" : "dark";
+  applyTheme(next);
+  localStorage.setItem(THEME_KEY, next);
+}
+
+/* ============================================================
+   ЗАКРЫТИЕ МОДАЛОК ПО ФОНУ
+   ============================================================ */
+document.getElementById("authModal").addEventListener("click", e => {
+  if (e.target.id === "authModal") closeAuthModal();
+});
+document.getElementById("adminModal").addEventListener("click", e => {
+  if (e.target.id === "adminModal") closeAdmin();
+});
+document.getElementById("logsModal").addEventListener("click", e => {
+  if (e.target.id === "logsModal") closeLogs();
+});
+
+/* ============================================================
+   СТАРТ
+   ============================================================ */
+(async function init() {
+  applyTheme(localStorage.getItem(THEME_KEY) || "light");
+  DAY_DATES = buildDayDates(currentWeekOffset);
+  currentDay = getTodayDay();
+
+  await loadScheduleFromSupabase();
+  await checkSession();
+  renderAll();
+
+  // Логируем визит (после того как узнали, кто залогинен)
+  await logVisit();
+
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if (event === "SIGNED_OUT") {
+      currentUser = null;
+      updateHeaderUI();
+    } else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+      if (session && session.user) {
+        await loadProfile(session.user);
+        updateHeaderUI();
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
