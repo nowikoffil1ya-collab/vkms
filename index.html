@@ -652,7 +652,32 @@ function computeMaxId() {
   return max;
 }
 
-function loadAllWeeks() {
+async function loadAllWeeks() {
+  // 1. Пробуем загрузить общий JSON с сервера (если есть)
+  try {
+    const res = await fetch("./schedule.json?t=" + Date.now());
+    if (res.ok) {
+      const parsed = await res.json();
+      const w0 = parsed[0] || defaultScheduleWeek0();
+      const w1 = parsed[1] || getEmptyWeek();
+      DAYS.forEach(d => {
+        if (!Array.isArray(w0[d])) w0[d] = [];
+        if (!Array.isArray(w1[d])) w1[d] = [];
+      });
+      schedulesByWeek[0] = w0;
+      schedulesByWeek[1] = w1;
+      schedule = schedulesByWeek[currentWeekOffset];
+      DAY_DATES = buildDayDates(currentWeekOffset);
+      const nid = localStorage.getItem(STORAGE_NID);
+      nextId = nid ? parseInt(nid) : computeMaxId() + 1;
+      console.log("✅ Расписание загружено с сервера");
+      return;
+    }
+  } catch (e) {
+    console.warn("Серверный JSON не найден:", e);
+  }
+
+  // 2. Если сервер недоступен — берём из localStorage или дефолтное
   try {
     const raw = localStorage.getItem(WEEK_STORAGE_KEY);
     if (raw) {
