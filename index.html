@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#8baf78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Расписание">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Расписание занятий</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  :root {
+    --accent: #8baf78; --accent-dark: #7ba168; --dark-green: #4a6b3d;
+    --light-green: #eaf3e4; --bg: #f4f7f1; --danger: #c96a5a;
+    --text: #2d3b26; --muted: #7a8a72; --glass: rgba(255,255,255,0.6);
+    --border: rgba(139,175,120,0.28); --shadow: 0 8px 24px rgba(74,107,61,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { min-height: 100%; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased;
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(circle at 8% 12%, rgba(139,175,120,0.22) 0%, transparent 42%),
+      radial-gradient(circle at 92% 8%, rgba(234,243,228,0.95) 0%, transparent 50%),
+      radial-gradient(circle at 82% 92%, rgba(139,175,120,0.16) 0%, transparent 45%),
+      radial-gradient(circle at 18% 82%, rgba(200,220,185,0.4) 0%, transparent 40%);
+    background-attachment: fixed;
+    padding: calc(16px + env(safe-area-inset-top)) 14px calc(40px + env(safe-area-inset-bottom));
+    overscroll-behavior: none; transition: background-color 0.3s, color 0.3s;
+  }
+  h1, h2, h3 { font-family: 'Playfair Display', Georgia, serif; color: var(--dark-green); font-weight: 700; letter-spacing: -0.3px; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  .header {
+    background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 20px; padding: 18px 20px;
+    margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; flex-wrap: wrap; box-shadow: var(--shadow);
+  }
+  .header h1 { font-size: 22px; line-height: 1.15; }
+  .header .subtitle { font-size: 13px; color: var(--muted); margin-top: 4px; font-weight: 500; }
+  .header .subtitle b { color: var(--dark-green); }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .week-switcher {
+    display: flex; gap: 8px; margin-bottom: 14px;
+    background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 16px; padding: 10px;
+    box-shadow: var(--shadow); justify-content: center;
+  }
+  .week-btn {
+    flex: 1; max-width: 240px; padding: 11px 16px;
+    border: 1.5px solid var(--border); background: rgba(255,255,255,0.6);
+    border-radius: 12px; font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .week-btn:hover { background: var(--light-green); color: var(--dark-green); }
+  .week-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 4px 12px rgba(139,175,120,0.4); }
+  .week-btn:active { transform: scale(0.97); }
+  body.dark .week-btn { background: rgba(40,55,40,0.7); color: var(--muted); }
+  body.dark .week-btn.active { background: var(--accent); color: #fff; }
+  .btn {
+    font-family: 'Inter', sans-serif; border: none; border-radius: 12px;
+    padding: 11px 18px; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: all 0.18s ease; display: inline-flex; align-items: center;
+    gap: 6px; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #fff; box-shadow: 0 4px 12px rgba(139,175,120,0.4); }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-ghost { background: rgba(255,255,255,0.55); color: var(--dark-green); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: #fff; border-color: var(--accent); }
+  .btn-ghost:active { transform: scale(0.97); }
+  .btn-danger { background: rgba(201,106,90,0.12); color: var(--danger); border: 1px solid rgba(201,106,90,0.3); }
+  .btn-danger:hover { background: var(--danger); color: #fff; }
+  .btn-danger:active { transform: scale(0.97); }
+  .btn-sm { padding: 7px 13px; font-size: 13px; border-radius: 9px; }
+  .theme-toggle { padding: 11px 14px; font-size: 16px; min-width: 44px; justify-content: center; }
+  .days-nav {
+    display: flex; gap: 8px; margin-bottom: 14px;
+    background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 16px; padding: 12px 10px;
+    box-shadow: var(--shadow); justify-content: center; flex-wrap: wrap;
+  }
+  .day-btn {
+    width: 46px; height: 46px; min-width: 46px;
+    border: 1.5px solid var(--border); background: rgba(255,255,255,0.6);
+    border-radius: 50%; cursor: pointer; font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 700; color: var(--muted);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1); padding: 0;
+    position: relative; user-select: none;
+  }
+  .day-btn:hover { background: var(--light-green); color: var(--dark-green); border-color: var(--accent); }
+  .day-btn:active { transform: scale(0.92); }
+  .day-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 6px 16px rgba(139,175,120,0.55); transform: scale(1.08); }
+  .day-btn.active::after { content: ""; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 6px; height: 6px; background: var(--accent); border-radius: 50%; }
+  .filter-bar {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 16px; padding: 10px 14px;
+    box-shadow: var(--shadow); flex-wrap: wrap;
+  }
+  .filter-bar label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .filter-bar select { flex: 1; min-width: 160px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.75); font-family: 'Inter', sans-serif; font-size: 14px; color: var(--text); cursor: pointer; }
+  .filter-bar select:focus { outline: none; border-color: var(--accent); }
+  .lessons-cards { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .lesson-card { background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 16px; padding: 16px 18px; box-shadow: var(--shadow); animation: fadeUp 0.3s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .lesson-card .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .lesson-card .pair-badge { font-family: 'Playfair Display', serif; font-size: 13px; font-weight: 700; color: var(--dark-green); background: var(--light-green); padding: 4px 12px; border-radius: 8px; }
+  .lesson-card .room-badge { font-size: 12px; font-weight: 600; color: var(--dark-green); background: rgba(139,175,120,0.18); padding: 4px 11px; border-radius: 8px; }
+  .lesson-card .subject { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 700; color: var(--dark-green); margin-bottom: 10px; line-height: 1.25; }
+  .lesson-card .meta { display: flex; flex-direction: column; gap: 5px; font-size: 14px; color: var(--muted); }
+  .lesson-card .meta span::before { display: inline-block; margin-right: 6px; opacity: 0.75; }
+  .lesson-card .meta .group::before { content: "👥"; }
+  .lesson-card .meta .teacher::before { content: "👤"; }
+  .lesson-card .meta b { color: var(--text); font-weight: 600; }
+  .lessons-table-wrap { display: none; background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid var(--border); border-radius: 18px; padding: 0; box-shadow: var(--shadow); overflow: hidden; }
+  .lessons-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+  .lessons-table th, .lessons-table td { padding: 14px 16px; text-align: left; vertical-align: top; }
+  .lessons-table th { font-family: 'Inter', sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #ffffff; background: linear-gradient(180deg, #8baf78 0%, #7a9e68 100%); border-bottom: none; font-weight: 700; text-shadow: 0 1px 2px rgba(74,107,61,0.25); }
+  .lessons-table th:first-child { border-top-left-radius: 17px; }
+  .lessons-table th:last-child  { border-top-right-radius: 17px; }
+  .lessons-table th:nth-child(even) { background: linear-gradient(180deg, #82a670 0%, #71945f 100%); }
+  .lessons-table td { border-bottom: 1px solid rgba(139,175,120,0.18); color: var(--text); }
+  .lessons-table tr:last-child td { border-bottom: none; }
+  .lessons-table tr:hover td { background: rgba(234,243,228,0.55); }
+  .lessons-table .cell-pair { font-weight: 700; color: var(--dark-green); font-family: 'Playfair Display', serif; font-size: 16px; }
+  .lessons-table .cell-subject { font-weight: 600; color: var(--dark-green); }
+  .lessons-table .cell-muted { color: var(--muted); font-size: 13px; }
+  .lessons-table .dash { color: #c8d0c2; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); background: var(--glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px dashed var(--border); border-radius: 18px; }
+  .empty-state .emoji { font-size: 52px; margin-bottom: 14px; display: block; opacity: 0.85; }
+  .empty-state p { font-size: 15px; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(45,59,38,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1000; padding: 20px; overflow-y: auto; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal-overlay.open { display: block; }
+  .modal { background: linear-gradient(160deg, #ffffff 0%, #f7fbf4 100%); max-width: 780px; margin: 20px auto; border-radius: 22px; padding: 24px; box-shadow: 0 24px 60px rgba(45,59,38,0.28); border: 1px solid var(--border); animation: slideUp 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.1); }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(30px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .modal-lg { max-width: 1080px; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .modal-header h2 { font-size: 20px; }
+  .close-btn { background: rgba(139,175,120,0.14); border: none; width: 38px; height: 38px; border-radius: 11px; font-size: 20px; color: var(--dark-green); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .close-btn:hover { background: var(--accent); color: #fff; }
+  .close-btn:active { transform: scale(0.92); }
+  .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+  .form-field { display: flex; flex-direction: column; gap: 6px; }
+  .form-field.full { grid-column: 1 / -1; }
+  .form-field label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-field input, .form-field select { padding: 11px 14px; border: 1px solid var(--border); border-radius: 11px; background: rgba(255,255,255,0.9); font-family: 'Inter', sans-serif; font-size: 15px; color: var(--text); transition: all 0.15s; }
+  .form-field input:focus, .form-field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139,175,120,0.15); }
+  .form-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  .admin-section { background: rgba(234,243,228,0.5); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 14px; }
+  .admin-section h3 { font-size: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .dropzone { border: 2px dashed var(--border); border-radius: 14px; padding: 22px; text-align: center; cursor: pointer; transition: all 0.2s; background: rgba(255,255,255,0.5); }
+  .dropzone:hover, .dropzone.dragover { border-color: var(--accent); background: rgba(139,175,120,0.1); }
+  .dropzone .dz-icon { font-size: 34px; margin-bottom: 8px; display: block; opacity: 0.75; }
+  .dropzone .dz-text { font-size: 14px; font-weight: 600; color: var(--dark-green); }
+  .dropzone .dz-hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 14px 0; border-radius: 10px; overflow: hidden; }
+  .preview-table th, .preview-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  .preview-table th { background: rgba(139,175,120,0.14); color: var(--dark-green); font-weight: 600; font-size: 12px; }
+  .admin-list { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; padding-right: 4px; }
+  .admin-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.75); border: 1px solid var(--border); border-radius: 11px; font-size: 13px; }
+  .admin-item .info { flex: 1; line-height: 1.45; }
+  .admin-item .info b { color: var(--dark-green); }
+  .admin-item .info span { color: var(--muted); }
+  .admin-item .pair-tag { display: inline-block; background: var(--light-green); color: var(--dark-green); font-weight: 700; padding: 2px 8px; border-radius: 6px; font-size: 11px; margin-right: 8px; }
+  .admin-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .toast { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%) translateY(20px); background: var(--dark-green); color: #fff; padding: 13px 22px; border-radius: 12px; font-size: 14px; font-weight: 500; opacity: 0; pointer-events: none; transition: all 0.3s; z-index: 2000; box-shadow: 0 10px 30px rgba(74,107,61,0.35); max-width: 90%; text-align: center; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { background: var(--danger); }
+  .install-banner { position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); left: 12px; right: 12px; background: #1a1a1a; color: #fff; padding: 14px 16px; border-radius: 16px; display: none; align-items: center; gap: 12px; box-shadow: 0 12px 36px rgba(0,0,0,0.35); z-index: 500; animation: slideUp 0.4s ease; }
+  .install-banner.show { display: flex; }
+  .install-banner .txt { flex: 1; font-size: 13px; line-height: 1.4; }
+  .install-banner .txt b { display: block; font-size: 14px; margin-bottom: 2px; }
+  .install-banner button { background: #8baf78; color: #fff; border: none; padding: 9px 14px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .install-banner .close-x { background: transparent; color: #98a2b3; padding: 0; font-size: 22px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; }
+  body.dark { --accent: #7ba168; --accent-dark: #6b8f58; --dark-green: #a8c79a; --light-green: #2a3b22; --bg: #1a231a; --danger: #e07a6a; --text: #e8f0e3; --muted: #98a890; --glass: rgba(40,55,40,0.7); --border: rgba(139,175,120,0.3); --shadow: 0 8px 24px rgba(0,0,0,0.35);
+    background-color: #1a231a;
+    background-image:
+      radial-gradient(circle at 8% 12%, rgba(139,175,120,0.08) 0%, transparent 42%),
+      radial-gradient(circle at 92% 8%, rgba(40,55,40,0.6) 0%, transparent 50%),
+      radial-gradient(circle at 82% 92%, rgba(139,175,120,0.06) 0%, transparent 45%),
+      radial-gradient(circle at 18% 82%, rgba(60,80,55,0.4) 0%, transparent 40%);
+  }
+  body.dark h1, body.dark h2, body.dark h3 { color: var(--dark-green); }
+  body.dark .day-btn { background: rgba(40,55,40,0.7); color: var(--muted); }
+  body.dark .day-btn:hover { background: var(--light-green); color: var(--dark-green); }
+  body.dark .day-btn.active { color: #fff; }
+  body.dark .btn-ghost { background: rgba(40,55,40,0.6); color: var(--dark-green); }
+  body.dark .btn-ghost:hover { background: rgba(60,80,55,0.8); }
+  body.dark .filter-bar select, body.dark .form-field input, body.dark .form-field select { background: rgba(30,40,30,0.9); color: var(--text); }
+  body.dark .lesson-card { background: var(--glass); }
+  body.dark .modal { background: linear-gradient(160deg, #2a352a 0%, #1f281f 100%); }
+  body.dark .admin-section { background: rgba(30,40,30,0.6); }
+  body.dark .admin-item { background: rgba(35,48,35,0.8); }
+  body.dark .dropzone { background: rgba(30,40,30,0.6); }
+  body.dark .preview-table th { background: rgba(139,175,120,0.18); }
+  body.dark .lessons-table tr:hover td { background: rgba(50,70,45,0.5); }
+  body.dark .empty-state { background: var(--glass); }
+  @media (min-width: 768px) {
+    body { padding: 20px 16px 60px; }
+    .header { padding: 22px 26px; }
+    .header h1 { font-size: 26px; }
+    .days-nav { padding: 14px 16px; gap: 10px; }
+    .day-btn { width: 48px; height: 48px; min-width: 48px; }
+    .lessons-cards { display: none; }
+    .lessons-table-wrap { display: block; }
+    .lessons-table-wrap.is-empty { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="header">
+    <div>
+      <h1>Расписание занятий</h1>
+      <div class="subtitle">День: <b id="headerDay">Четверг</b> <span id="headerDate"></span> <span id="headerCount"></span></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost theme-toggle" id="themeBtn" onclick="toggleTheme()" title="Сменить тему">🌙</button>
+      <button class="btn btn-primary" id="adminBtn" onclick="openLogin()">🔐 Админ</button>
+    </div>
+  </header>
+
+  <div class="week-switcher">
+    <button class="week-btn active" id="weekBtn0" onclick="switchWeek(0)">📅 Эта неделя</button>
+    <button class="week-btn" id="weekBtn1" onclick="switchWeek(1)">📅 Следующая неделя</button>
+  </div>
+
+  <nav class="days-nav" id="daysNav"></nav>
+
+  <div class="filter-bar">
+    <label for="groupFilter">Группа</label>
+    <select id="groupFilter" onchange="renderAll()">
+      <option value="all">Все группы</option>
+    </select>
+  </div>
+
+  <div id="cardsView" class="lessons-cards"></div>
+
+  <div id="tableView" class="lessons-table-wrap">
+    <table class="lessons-table">
+      <thead>
+        <tr>
+          <th>№ каб.</th>
+          <th>Ф.И.О.</th>
+          <th>1 пара</th>
+          <th>2 пара</th>
+          <th>3 пара</th>
+          <th>4 пара</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ЛОГИН -->
+<div class="modal-overlay" id="loginModal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <h2>Вход в админ-панель</h2>
+      <button class="close-btn" onclick="closeLogin()">×</button>
+    </div>
+    <div class="form-field full" style="margin-bottom:18px">
+      <label for="pwdInput">Пароль</label>
+      <input type="password" id="pwdInput" placeholder="Введите пароль" autocomplete="current-password" onkeydown="if(event.key==='Enter') tryLogin()">
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-ghost" onclick="closeLogin()">Отмена</button>
+      <button class="btn btn-primary" onclick="tryLogin()">Войти</button>
+    </div>
+  </div>
+</div>
+
+<!-- АДМИН -->
+<div class="modal-overlay" id="adminModal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2>⚙️ Панель администратора</h2>
+      <button class="close-btn" onclick="closeAdmin()">×</button>
+    </div>
+
+    <div class="admin-toolbar">
+      <button class="btn btn-ghost btn-sm" onclick="exportJSON()">💾 Экспорт JSON</button>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('importJSON').click()">📂 Импорт JSON</button>
+      <button class="btn btn-danger btn-sm" onclick="clearDay()">🗑 Очистить день</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetAll()">♻️ Сбросить всё</button>
+      <input type="file" id="importJSON" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+
+    <div class="admin-section" style="background: rgba(139,175,120,0.18); border-color: var(--accent);">
+      <h3>📅 Какая неделя редактируется?</h3>
+      <select id="adminWeekSelect" onchange="switchWeekFromAdmin(this.value)">
+        <option value="0">📅 Эта неделя</option>
+        <option value="1">📅 Следующая неделя</option>
+      </select>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">
+        Все изменения ниже применяются к выбранной неделе.
+      </p>
+    </div>
+
+    <div class="admin-section" style="background: rgba(139,175,120,0.18); border-color: var(--accent);">
+      <h3>📤 Опубликовать расписание для всех</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+        Нажмите — расписание отправится на GitHub. Все пользователи увидят его при следующем открытии сайта.
+      </p>
+      <div class="form-field full" style="margin-bottom:12px">
+        <label>GitHub Token (один раз)</label>
+        <input id="githubToken" type="password" placeholder="github_pat_..." autocomplete="off">
+        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="saveGithubToken()">💾 Сохранить токен</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="forgetGithubToken()">🗑 Забыть</button>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="publishSchedule()">📤 Опубликовать сейчас</button>
+      </div>
+      <div id="publishStatus" style="margin-top:10px;font-size:13px;color:var(--muted)"></div>
+    </div>
+
+    <div class="form-field full" style="margin-bottom:16px">
+      <label>Редактируем день</label>
+      <select id="adminDaySelect" onchange="renderAdminList()"></select>
+    </div>
+
+    <div class="admin-section">
+      <h3>➕ Добавить занятие вручную</h3>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Номер пары</label>
+          <select id="addPair">
+            <option value="1">1 пара</option>
+            <option value="2">2 пара</option>
+            <option value="3">3 пара</option>
+            <option value="4">4 пара</option>
+          </select>
+        </div>
+        <div class="form-field"><label>Кабинет</label><input id="addRoom" placeholder="213" inputmode="numeric"></div>
+        <div class="form-field"><label>Преподаватель</label><input id="addTeacher" placeholder="Иванов И.И."></div>
+        <div class="form-field">
+          <label>Группа</label>
+          <select id="addGroupSelect" onchange="document.getElementById('addGroup').value = this.value === '__custom__' ? '' : this.value; document.getElementById('addGroup').style.display = this.value === '__custom__' ? 'block' : 'none';">
+            <option value="__custom__">Другая группа (ввести вручную)</option>
+          </select>
+        </div>
+        <div class="form-field full">
+          <input id="addGroup" placeholder="Введите группу" style="display:block">
+        </div>
+        <div class="form-field full"><label>Предмет</label><input id="addSubject" placeholder="Математика"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="addPairManual()">Добавить</button>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <h3>📊 Загрузить таблицу Excel / CSV</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+        Одна строка = одна пара. Столбцы: <b>Пара → Кабинет → Преподаватель → Группа → Предмет</b>.
+        Форматы: .xlsx, .xls, .csv. Данные добавятся в день: <span id="uploadDayLabel" style="color:var(--dark-green);font-weight:600"></span>.
+      </p>
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('excelFile').click()">
+        <span class="dz-icon">📁</span>
+        <div class="dz-text">Нажмите или перетащите файл сюда</div>
+        <div class="dz-hint">.xlsx, .xls, .csv</div>
+      </div>
+      <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" style="display:none">
+      <div id="previewArea"></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>🤖 ИИ-распознавание расписания по фото</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+        Загрузите фото расписания — ИИ распознает таблицу и заполнит её.
+      </p>
+
+      <div class="form-field full" style="margin-bottom:12px">
+        <label>API-ключ агрегатора (Ofox.ai, начинается с sk-)</label>
+        <input id="geminiKey" type="password" placeholder="sk-of-..." autocomplete="off">
+        <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="saveGeminiKey()">💾 Сохранить ключ</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="forgetGeminiKey()">🗑 Забыть ключ</button>
+        </div>
+      </div>
+
+      <div class="dropzone" id="aiDropzone" onclick="document.getElementById('aiFile').click()">
+        <span class="dz-icon">📸</span>
+        <div class="dz-text">Загрузить фото расписания</div>
+        <div class="dz-hint">.jpg, .jpeg, .png</div>
+      </div>
+      <input type="file" id="aiFile" accept="image/*" style="display:none">
+
+      <div id="aiStatus" style="display:none;margin-top:12px;font-size:13px;color:var(--muted)"></div>
+      <div id="aiPreviewArea"></div>
+    </div>
+
+    <div class="admin-section">
+      <h3>📋 Занятия на выбранный день</h3>
+      <div class="admin-list" id="adminList"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="install-banner" id="installBanner">
+  <div class="txt">
+    <b>Установить приложение?</b>
+    Добавьте «Расписание» на главный экран
+  </div>
+  <button onclick="installPWA()">Установить</button>
+  <button class="close-x" onclick="dismissInstall()">×</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   КОНСТАНТЫ
+   ============================================================ */
+const DAYS = ["Понедельник","Вторник","Среда","Четверг","Пятница"];
+const DAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт"];
+const MONTHS = ["января","февраля","марта","апреля","мая","июня",
+                "июля","августа","сентября","октября","ноября","декабря"];
+const GROUP_PATTERN = /^\d{1,3}-[А-Яа-яA-Za-z]+-\d{2}$/;
+
+function getTodayDay() {
+  const jsDay = new Date().getDay();
+  const map = { 1: "Понедельник", 2: "Вторник", 3: "Среда", 4: "Четверг", 5: "Пятница" };
+  return map[jsDay] || "Понедельник";
+}
+
+function buildDayDates(weekOffset = 0) {
+  const today = new Date();
+  const jsDay = today.getDay();
+  const monday = new Date(today);
+  if (jsDay === 0)      monday.setDate(today.getDate() + 1);
+  else if (jsDay === 6) monday.setDate(today.getDate() + 2);
+  else                  monday.setDate(today.getDate() - (jsDay - 1));
+  monday.setDate(monday.getDate() + weekOffset * 7);
+  const dates = {};
+  DAYS.forEach((d, i) => {
+    const dt = new Date(monday);
+    dt.setDate(monday.getDate() + i);
+    dates[d] = `${dt.getDate()} ${MONTHS[dt.getMonth()]}`;
+  });
+  return dates;
+}
+
+const ADMIN_SALT = "vkms_s3cur3_s4lt_2026";
+const ADMIN_PASSWORD_HASH = "14a04c3c3473e8e437526f5f391182165cfe4a1d388ca61b6cff6d112ea3c7c9";
+const WEEK_STORAGE_KEY = "schedule_app_vkms_weeks";
+const STORAGE_NID = "schedule_app_vkms_nid";
+const THEME_KEY = "schedule_theme";
+const GEMINI_KEY_STORAGE = "schedule_gemini_key";
+
+const GITHUB_TOKEN_KEY = "schedule_github_token";
+const GITHUB_OWNER = "nowikoffil1ya-collab";
+const GITHUB_REPO = "vkms";
+const GITHUB_PATH = "schedule.json";
+const GITHUB_BRANCH = "main";
+
+const AI_ENDPOINT = "https://ofox-proxy.nowikoff-il1ya.workers.dev";
+const AI_MODEL = "google/gemini-2.5-flash";
+
+const ALL_GROUPS = [
+  "1-ОИС-25", "1-ОИС-26",
+  "11-ИК-24", "11-ИК-25", "11-ИК-26",
+  "12-ПС-24", "12-ПС-25", "12-ПС-26",
+  "14-ЭО-24", "14-ЭО-25", "14-ЭО-26",
+  "19-АТ-26",
+  "3-ЭМС-25", "3-ЭМС-26",
+  "6-ЛК-24", "6-ЛК-25", "6-ЛК-26"
+];
+
+let currentWeekOffset = 0;
+let schedulesByWeek = { 0: null, 1: null };
+let schedule = null;
+let DAY_DATES = {};
+let currentDay = getTodayDay();
+let nextId = 1;
+let parsedPreview = [];
+let aiParsedPreview = [];
+
+function getEmptyWeek() {
+  const w = {};
+  DAYS.forEach(d => w[d] = []);
+  return w;
+}
+
+function defaultScheduleWeek0() {
+  return {
+    "Понедельник": [], "Вторник": [], "Среда": [], "Четверг": [],
+    "Пятница": [
+      { id: 400, pair: 1, room: "213", teacher: "Блинов А.В.",       group: "14-ЭО-25", subject: "ОТ" },
+      { id: 401, pair: 1, room: "204", teacher: "Вербицкая О.В.",    group: "12-ПС-25", subject: "ОМЗ" },
+      { id: 402, pair: 1, room: "304", teacher: "Щербакова Л.В.",    group: "14-ЭО-26", subject: "история" },
+      { id: 403, pair: 1, room: "306", teacher: "Глухова Н.И.",      group: "3-ЭМС-25", subject: "обществознание" },
+      { id: 404, pair: 1, room: "408", teacher: "Гугняева И.О.",     group: "3-ЭМС-26", subject: "математика" },
+      { id: 405, pair: 1, room: "217", teacher: "Желтяков В.С.",     group: "1-ОИС-26", subject: "физика" },
+      { id: 406, pair: 1, room: "212", teacher: "Маврин В.Н.",       group: "14-ЭО-24", subject: "эл.машины" },
+      { id: 407, pair: 1, room: "110", teacher: "Майданенко Е.В.",   group: "1-ОИС-25", subject: "ДОУ" },
+      { id: 408, pair: 1, room: "405", teacher: "Машарова М.В.",     group: "6-ЛК-26",  subject: "химия" },
+      { id: 409, pair: 1, room: "404", teacher: "Машарова М.В.",     group: "6-ЛК-24",  subject: "МДК.02.01" },
+      { id: 410, pair: 1, room: "302", teacher: "Назармамбетов М.Д.", group: "12-ПС-26", subject: "информатика" },
+      { id: 411, pair: 1, room: "402", teacher: "Родионова М.А.",    group: "19-АТ-26", subject: "ОПД" },
+      { id: 412, pair: 1, room: "310", teacher: "Семенова О.В.",     group: "11-ИК-24", subject: "МДК.01.01" },
+      { id: 413, pair: 1, room: "с/з", teacher: "Суворов В.Ф.",      group: "12-ПС-24", subject: "физ-ра" },
+      { id: 414, pair: 1, room: "312", teacher: "Несякина М.В.",     group: "11-ИК-25", subject: "ТЭЦ" },
+      { id: 415, pair: 1, room: "407", teacher: "Ерохина Е.В.",      group: "6-ЛК-25",  subject: "УП" },
+      { id: 416, pair: 1, room: "411, 414", teacher: "Лебедева А.И., Пенькова А.А.", group: "11-ИК-26", subject: "ин.язык" },
+      { id: 500, pair: 2, room: "213", teacher: "Блинов А.В.",       group: "14-ЭО-25", subject: "ОТ" },
+      { id: 501, pair: 2, room: "204", teacher: "Вербицкая О.В.",    group: "12-ПС-25", subject: "ОМЗ" },
+      { id: 502, pair: 2, room: "304", teacher: "Щербакова Л.В.",    group: "11-ИК-25", subject: "история России" },
+      { id: 503, pair: 2, room: "306", teacher: "Глухова Н.И.",      group: "6-ЛК-24",  subject: "обществознание" },
+      { id: 504, pair: 2, room: "408", teacher: "Гугняева И.О.",     group: "11-ИК-24", subject: "МДК.01.04" },
+      { id: 505, pair: 2, room: "217", teacher: "Желтяков В.С.",     group: "3-ЭМС-26", subject: "физика" },
+      { id: 506, pair: 2, room: "212", teacher: "Маврин В.Н.",       group: "14-ЭО-24", subject: "эл.машины" },
+      { id: 507, pair: 2, room: "110", teacher: "Майданенко Е.В.",   group: "1-ОИС-25", subject: "ДОУ" },
+      { id: 508, pair: 2, room: "405", teacher: "Машарова М.В.",     group: "19-АТ-26", subject: "химия" },
+      { id: 509, pair: 2, room: "302", teacher: "Назармамбетов М.Д.", group: "6-ЛК-26", subject: "информатика" },
+      { id: 510, pair: 2, room: "402", teacher: "Родионова М.А.",    group: "12-ПС-24", subject: "эконом.организ" },
+      { id: 511, pair: 2, room: "404", teacher: "Родионова М.А.",    group: "12-ПС-26", subject: "ОПД" },
+      { id: 512, pair: 2, room: "310", teacher: "Семенова О.В.",     group: "11-ИК-26", subject: "введен.в спец" },
+      { id: 513, pair: 2, room: "с/з", teacher: "Суворов В.Ф.",      group: "3-ЭМС-25", subject: "физ-ра" },
+      { id: 514, pair: 2, room: "312", teacher: "Несякина М.В.",     group: "1-ОИС-26", subject: "информатика" },
+      { id: 515, pair: 2, room: "407", teacher: "Ерохина Е.В.",      group: "6-ЛК-25",  subject: "УП" },
+      { id: 516, pair: 2, room: "411, 414", teacher: "Лебедева А.И., Пенькова А.А.", group: "14-ЭО-26", subject: "ин.язык" },
+      { id: 600, pair: 3, room: "213", teacher: "Блинов А.В.",       group: "14-ЭО-25", subject: "МДК.05.01" },
+      { id: 601, pair: 3, room: "304", teacher: "Щербакова Л.В.",    group: "19-АТ-26", subject: "история" },
+      { id: 602, pair: 3, room: "306", teacher: "Глухова Н.И.",      group: "6-ЛК-24",  subject: "обществознание" },
+      { id: 603, pair: 3, room: "408", teacher: "Гугняева И.О.",     group: "3-ЭМС-25", subject: "МДК.01.01" },
+      { id: 604, pair: 3, room: "404", teacher: "Гугняева И.О.",     group: "11-ИК-25", subject: "осн.инж.графика" },
+      { id: 605, pair: 3, room: "217", teacher: "Желтяков В.С.",     group: "11-ИК-26", subject: "физика" },
+      { id: 606, pair: 3, room: "212", teacher: "Маврин В.Н.",       group: "14-ЭО-24", subject: "эл.машины" },
+      { id: 607, pair: 3, room: "110", teacher: "Майданенко Е.В.",   group: "1-ОИС-25", subject: "ДОУ" },
+      { id: 608, pair: 3, room: "110", teacher: "Майданенко Е.В.",   group: "12-ПС-24", subject: "МДК.02.01" },
+      { id: 609, pair: 3, room: "405", teacher: "Машарова М.В.",     group: "6-ЛК-26",  subject: "химия" },
+      { id: 610, pair: 3, room: "302", teacher: "Назармамбетов М.Д.", group: "1-ОИС-26", subject: "введен.в проф" },
+      { id: 611, pair: 3, room: "402", teacher: "Родионова М.А.",    group: "14-ЭО-26", subject: "ОПД" },
+      { id: 612, pair: 3, room: "310", teacher: "Семенова О.В.",     group: "11-ИК-24", subject: "МДК.01.01" },
+      { id: 613, pair: 3, room: "с/з", teacher: "Суворов В.Ф.",      group: "12-ПС-25", subject: "физ-ра" },
+      { id: 614, pair: 3, room: "312", teacher: "Несякина М.В.",     group: "3-ЭМС-26", subject: "информатика" },
+      { id: 615, pair: 3, room: "407", teacher: "Ерохина Е.В.",      group: "6-ЛК-25",  subject: "УП" },
+      { id: 616, pair: 3, room: "411, 414", teacher: "Лебедева А.И., Пенькова А.А.", group: "12-ПС-26", subject: "ин.язык" },
+      { id: 700, pair: 4, room: "213", teacher: "Блинов А.В.",       group: "12-ПС-25", subject: "ОТ" },
+      { id: 701, pair: 4, room: "304", teacher: "Щербакова Л.В.",    group: "3-ЭМС-26", subject: "информатика" },
+      { id: 702, pair: 4, room: "306", teacher: "Глухова Н.И.",      group: "1-ОИС-25", subject: "обществознание" },
+      { id: 703, pair: 4, room: "408", teacher: "Гугняева И.О.",     group: "14-ЭО-26", subject: "введен.в спец" },
+      { id: 704, pair: 4, room: "217", teacher: "Желтяков В.С.",     group: "6-ЛК-26",  subject: "физика" },
+      { id: 705, pair: 4, room: "204", teacher: "Желтяков В.С.",     group: "1-ОИС-26", subject: "физика" },
+      { id: 706, pair: 4, room: "110", teacher: "Майданенко Е.В.",   group: "12-ПС-24", subject: "МДК.02.01" },
+      { id: 707, pair: 4, room: "405", teacher: "Машарова М.В.",     group: "12-ПС-26", subject: "химия" },
+      { id: 708, pair: 4, room: "302", teacher: "Назармамбетов М.Д.", group: "6-ЛК-24", subject: "осн.цифр.грам" },
+      { id: 709, pair: 4, room: "402", teacher: "Родионова М.А.",    group: "11-ИК-26", subject: "ОПД" },
+      { id: 710, pair: 4, room: "с/з", teacher: "Суворов В.Ф.",      group: "19-АТ-26", subject: "физ-ра" },
+      { id: 711, pair: 4, room: "312", teacher: "Несякина М.В.",     group: "14-ЭО-25", subject: "мат.вед" },
+      { id: 712, pair: 4, room: "411, 414", teacher: "Лебедева А.И., Пенькова А.А.", group: "11-ИК-24", subject: "ин.язык" }
+    ]
+  };
+}
+
+function computeMaxId() {
+  let max = 0;
+  Object.values(schedulesByWeek).forEach(week => {
+    if (!week) return;
+    Object.values(week).forEach(arr => arr.forEach(p => { if (p.id > max) max = p.id; }));
+  });
+  return max;
+}
+
+async function loadAllWeeks() {
+  try {
+    const res = await fetch("./schedule.json?t=" + Date.now());
+    if (res.ok) {
+      const parsed = await res.json();
+      const w0 = parsed[0] || defaultScheduleWeek0();
+      const w1 = parsed[1] || getEmptyWeek();
+      DAYS.forEach(d => {
+        if (!Array.isArray(w0[d])) w0[d] = [];
+        if (!Array.isArray(w1[d])) w1[d] = [];
+      });
+      schedulesByWeek[0] = w0;
+      schedulesByWeek[1] = w1;
+      schedule = schedulesByWeek[currentWeekOffset];
+      DAY_DATES = buildDayDates(currentWeekOffset);
+      const nid = localStorage.getItem(STORAGE_NID);
+      nextId = nid ? parseInt(nid) : computeMaxId() + 1;
+      console.log("✅ Загружено с сервера schedule.json");
+      return;
+    }
+  } catch (e) {
+    console.warn("schedule.json не найден — беру локальные данные");
+  }
+  try {
+    const raw = localStorage.getItem(WEEK_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const w0 = parsed[0] || defaultScheduleWeek0();
+      const w1 = parsed[1] || getEmptyWeek();
+      DAYS.forEach(d => {
+        if (!Array.isArray(w0[d])) w0[d] = [];
+        if (!Array.isArray(w1[d])) w1[d] = [];
+      });
+      schedulesByWeek[0] = w0;
+      schedulesByWeek[1] = w1;
+    } else {
+      schedulesByWeek[0] = defaultScheduleWeek0();
+      schedulesByWeek[1] = getEmptyWeek();
+    }
+  } catch (e) {
+    console.warn("Load error:", e);
+    schedulesByWeek[0] = defaultScheduleWeek0();
+    schedulesByWeek[1] = getEmptyWeek();
+  }
+  schedule = schedulesByWeek[currentWeekOffset];
+  DAY_DATES = buildDayDates(currentWeekOffset);
+  const nid = localStorage.getItem(STORAGE_NID);
+  nextId = nid ? parseInt(nid) : computeMaxId() + 1;
+}
+
+function persist() {
+  try {
+    localStorage.setItem(WEEK_STORAGE_KEY, JSON.stringify(schedulesByWeek));
+    localStorage.setItem(STORAGE_NID, nextId);
+  } catch (e) { toast("Ошибка сохранения", true); }
+}
+
+function loadGithubToken() {
+  try {
+    const t = localStorage.getItem(GITHUB_TOKEN_KEY);
+    const el = document.getElementById("githubToken");
+    if (t && el) el.value = t;
+  } catch (e) {}
+}
+function saveGithubToken() {
+  const val = document.getElementById("githubToken").value.trim();
+  if (!val) { toast("Введите токен", true); return; }
+  localStorage.setItem(GITHUB_TOKEN_KEY, val);
+  toast("Токен сохранён ✓");
+}
+function forgetGithubToken() {
+  if (!confirm("Удалить сохранённый токен?")) return;
+  localStorage.removeItem(GITHUB_TOKEN_KEY);
+  document.getElementById("githubToken").value = "";
+  toast("Токен удалён");
+}
+
+async function publishSchedule() {
+  const token = document.getElementById("githubToken").value.trim();
+  if (!token) { toast("Введите GitHub Token", true); return; }
+
+  const statusEl = document.getElementById("publishStatus");
+  statusEl.style.color = "var(--muted)";
+  statusEl.textContent = "⏳ Публикую…";
+
+  const apiUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`;
+  const headers = {
+    "Authorization": `Bearer ${token}`,
+    "Accept": "application/vnd.github.v3+json",
+    "Content-Type": "application/json"
+  };
+
+  try {
+    let sha = null;
+    const getRes = await fetch(`${apiUrl}?ref=${GITHUB_BRANCH}`, { headers });
+    if (getRes.ok) {
+      const data = await getRes.json();
+      sha = data.sha;
+    }
+    const jsonStr = JSON.stringify(schedulesByWeek, null, 2);
+    const bytes = new TextEncoder().encode(jsonStr);
+    let binary = "";
+    bytes.forEach(b => binary += String.fromCharCode(b));
+    const content = btoa(binary);
+
+    const body = {
+      message: `Обновление расписания ${new Date().toLocaleString("ru-RU")}`,
+      content,
+      branch: GITHUB_BRANCH
+    };
+    if (sha) body.sha = sha;
+
+    const putRes = await fetch(apiUrl, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(body)
+    });
+    if (!putRes.ok) {
+      const err = await putRes.json();
+      throw new Error(err.message || `HTTP ${putRes.status}`);
+    }
+    statusEl.style.color = "var(--accent)";
+    statusEl.textContent = "✅ Опубликовано! Все пользователи увидят новое расписание.";
+    toast("Опубликовано ✓");
+  } catch (err) {
+    console.error(err);
+    statusEl.style.color = "var(--danger)";
+    statusEl.textContent = "❌ Ошибка: " + err.message;
+    toast("Ошибка публикации", true);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[c]));
+}
+
+function toast(msg, isError = false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.toggle("error", isError);
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+function getAllGroups() {
+  const set = new Set(ALL_GROUPS);
+  Object.values(schedulesByWeek).forEach(week => {
+    if (!week) return;
+    Object.values(week).forEach(arr =>
+      arr.forEach(p => {
+        if (p.group && GROUP_PATTERN.test(p.group.trim())) set.add(p.group.trim());
+      })
+    );
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, "ru", { numeric: true }));
+}
+
+function switchWeek(offset) {
+  currentWeekOffset = offset;
+  schedule = schedulesByWeek[offset];
+  DAY_DATES = buildDayDates(offset);
+  document.getElementById("weekBtn0").classList.toggle("active", offset === 0);
+  document.getElementById("weekBtn1").classList.toggle("active", offset === 1);
+  renderAll();
+}
+function switchWeekFromAdmin(val) {
+  const offset = parseInt(val);
+  switchWeek(offset);
+  renderAdminList();
+}
+
+function renderDaysNav() {
+  const nav = document.getElementById("daysNav");
+  nav.innerHTML = "";
+  DAYS.forEach((d, i) => {
+    const b = document.createElement("button");
+    b.className = "day-btn" + (d === currentDay ? " active" : "");
+    b.textContent = DAYS_SHORT[i];
+    b.title = d;
+    b.setAttribute("aria-label", d);
+    b.onclick = () => { currentDay = d; renderAll(); };
+    nav.appendChild(b);
+  });
+}
+
+function updateGroupFilter() {
+  const sel = document.getElementById("groupFilter");
+  const prev = sel.value;
+  const groups = getAllGroups();
+  sel.innerHTML = '<option value="all">Все группы</option>' +
+    groups.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+  if (groups.includes(prev) || prev === "all") sel.value = prev;
+}
+
+function getFilteredList() {
+  const filter = document.getElementById("groupFilter").value;
+  let list = (schedule[currentDay] || []).slice();
+  if (filter !== "all") list = list.filter(p => p.group === filter);
+  return list.sort((a, b) => a.pair - b.pair);
+}
+
+function renderCards(list) {
+  const el = document.getElementById("cardsView");
+  const filter = document.getElementById("groupFilter").value;
+  const showGroup = filter === "all";
+  el.innerHTML = list.map(p => `
+    <div class="lesson-card">
+      <div class="card-top">
+        <span class="pair-badge">${p.pair} пара</span>
+        <span class="room-badge">каб. ${escapeHtml(p.room)}</span>
+      </div>
+      <div class="subject">${escapeHtml(p.subject)}</div>
+      <div class="meta">
+        ${showGroup ? `<span class="group">Группа: <b>${escapeHtml(p.group)}</b></span>` : ""}
+        <span class="teacher">Преподаватель: <b>${escapeHtml(p.teacher)}</b></span>
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderTable(list) {
+  const tbody = document.getElementById("tableBody");
+  const wrap = document.getElementById("tableView");
+  if (!list.length) { tbody.innerHTML = ""; wrap.classList.add("is-empty"); return; }
+  wrap.classList.remove("is-empty");
+  const byRoom = {};
+  list.forEach(p => {
+    if (!byRoom[p.room]) byRoom[p.room] = { room: p.room, teacher: p.teacher, pairs: {} };
+    byRoom[p.room].pairs[p.pair] = p;
+    if (!byRoom[p.room].teacher) byRoom[p.room].teacher = p.teacher;
+  });
+  const rows = Object.values(byRoom).sort((a, b) =>
+    String(a.room).localeCompare(String(b.room), "ru", { numeric: true })
+  );
+  tbody.innerHTML = rows.map(r => {
+    const cell = n => {
+      const p = r.pairs[n];
+      if (!p) return '<span class="dash">—</span>';
+      return `<span class="cell-subject">${escapeHtml(p.subject)}</span><br><span class="cell-muted">${escapeHtml(p.group)}</span>`;
+    };
+    return `<tr>
+      <td class="cell-pair">${escapeHtml(r.room)}</td>
+      <td>${escapeHtml(r.teacher)}</td>
+      <td>${cell(1)}</td><td>${cell(2)}</td><td>${cell(3)}</td><td>${cell(4)}</td>
+    </tr>`;
+  }).join("");
+}
+
+function renderEmptyState(list) {
+  const cardsEl = document.getElementById("cardsView");
+  const tableEl = document.getElementById("tableView");
+  const filter = document.getElementById("groupFilter").value;
+  if (!list.length) {
+    const msg = filter === "all"
+      ? "На этот день занятий нет"
+      : `У группы «${escapeHtml(filter)}» на этот день занятий нет`;
+    cardsEl.innerHTML = `<div class="empty-state"><span class="emoji">🌿</span><p>${msg}</p></div>`;
+    tableEl.classList.add("is-empty");
+  } else {
+    tableEl.classList.remove("is-empty");
+  }
+}
+
+function renderHeader() {
+  document.getElementById("headerDay").textContent = currentDay;
+  const date = DAY_DATES[currentDay] || "";
+  document.getElementById("headerDate").textContent = date ? `· ${date}` : "";
+  const n = (schedule[currentDay] || []).length;
+  document.getElementById("headerCount").textContent = n ? `· ${n} занятий` : "";
+}
+
+function renderAll() {
+  renderDaysNav();
+  renderHeader();
+  updateGroupFilter();
+  const list = getFilteredList();
+  renderEmptyState(list);
+  renderCards(list);
+  renderTable(list);
+}
+
+function openLogin() {
+  document.getElementById("loginModal").classList.add("open");
+  setTimeout(() => document.getElementById("pwdInput").focus(), 100);
+}
+function closeLogin() {
+  document.getElementById("loginModal").classList.remove("open");
+  document.getElementById("pwdInput").value = "";
+}
+async function sha256(str) {
+  const buf = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function tryLogin() {
+  const pwd = document.getElementById("pwdInput").value;
+  if (!pwd) return;
+  const hash = await sha256(ADMIN_SALT + pwd);
+  if (hash === ADMIN_PASSWORD_HASH) {
+    closeLogin();
+    openAdminPanel();
+  } else {
+    toast("Неверный пароль", true);
+    document.getElementById("pwdInput").value = "";
+    document.getElementById("pwdInput").focus();
+  }
+}
+
+function openAdminPanel() {
+  document.getElementById("adminModal").classList.add("open");
+  document.body.style.overflow = "hidden";
+  document.getElementById("adminWeekSelect").value = String(currentWeekOffset);
+  initAdminDaySelect();
+  initGroupSelects();
+  initAIKey();
+  loadGithubToken();
+  renderAdminList();
+}
+function closeAdmin() {
+  document.getElementById("adminModal").classList.remove("open");
+  document.body.style.overflow = "";
+  renderAll();
+}
+
+function initAdminDaySelect() {
+  const sel = document.getElementById("adminDaySelect");
+  sel.innerHTML = DAYS.map(d =>
+    `<option value="${d}" ${d === currentDay ? "selected" : ""}>${d}</option>`
+  ).join("");
+  sel.value = currentDay;
+}
+
+function initGroupSelects() {
+  const sel = document.getElementById("addGroupSelect");
+  const current = sel.value;
+  sel.innerHTML = '<option value="__custom__">Другая группа (ввести вручную)</option>' +
+    ALL_GROUPS.map(g => `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`).join("");
+  if (current && current !== "__custom__") sel.value = current;
+}
+
+function renderAdminList() {
+  const day = document.getElementById("adminDaySelect").value;
+  const weekLabel = currentWeekOffset === 0 ? "Эта неделя" : "Следующая неделя";
+  document.getElementById("uploadDayLabel").textContent = `${day} (${weekLabel})`;
+  const list = (schedule[day] || []).slice().sort((a, b) => a.pair - b.pair);
+  const el = document.getElementById("adminList");
+  if (!list.length) {
+    el.innerHTML = '<p style="color:var(--muted);padding:14px;text-align:center;font-size:13px">На этот день занятий нет</p>';
+    return;
+  }
+  el.innerHTML = list.map(p => `
+    <div class="admin-item">
+      <div class="info">
+        <span class="pair-tag">${p.pair} пара</span>
+        <b>${escapeHtml(p.subject)}</b><br>
+        <span>каб. ${escapeHtml(p.room)} · гр. ${escapeHtml(p.group)} · ${escapeHtml(p.teacher)}</span>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="deletePair(${p.id})">Удалить</button>
+    </div>
+  `).join("");
+}
+
+function addPairManual() {
+  const day = document.getElementById("adminDaySelect").value;
+  const pair = parseInt(document.getElementById("addPair").value);
+  const room = document.getElementById("addRoom").value.trim();
+  const teacher = document.getElementById("addTeacher").value.trim();
+  const groupSel = document.getElementById("addGroupSelect").value;
+  const groupInput = document.getElementById("addGroup").value.trim();
+  const group = groupSel === "__custom__" ? groupInput : groupSel;
+  const subject = document.getElementById("addSubject").value.trim();
+  if (!room || !teacher || !group || !subject) { toast("Заполните все поля", true); return; }
+  if (!schedule[day]) schedule[day] = [];
+  schedule[day].push({ id: nextId++, pair, room, teacher, group, subject });
+  persist();
+  ["addRoom","addTeacher","addGroup","addSubject"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("addGroupSelect").value = "__custom__";
+  document.getElementById("addGroup").style.display = "block";
+  renderAdminList();
+  toast("Добавлено ✓");
+}
+
+function deletePair(id) {
+  const day = document.getElementById("adminDaySelect").value;
+  if (!confirm("Удалить эту пару?")) return;
+  schedule[day] = (schedule[day] || []).filter(p => p.id !== id);
+  persist();
+  renderAdminList();
+  toast("Удалено");
+}
+
+const dropzone = document.getElementById("dropzone");
+const excelInput = document.getElementById("excelFile");
+
+["dragenter","dragover"].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add("dragover"); })
+);
+["dragleave","drop"].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove("dragover"); })
+);
+dropzone.addEventListener("drop", e => {
+  if (e.dataTransfer.files.length) handleExcelFile(e.dataTransfer.files[0]);
+});
+excelInput.addEventListener("change", e => {
+  if (e.target.files.length) handleExcelFile(e.target.files[0]);
+  e.target.value = "";
+});
+
+function handleExcelFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const buffer = ev.target.result;
+      const fileName = (file.name || "").toLowerCase();
+      const isCSV = fileName.endsWith(".csv") || file.type === "text/csv";
+      let parsed = [];
+
+      if (isCSV) {
+        let utf8Text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+        if (utf8Text.charCodeAt(0) === 0xFEFF) utf8Text = utf8Text.slice(1);
+        let text = utf8Text;
+        if (/Ð[\u0080-\u00BF]|Ñ[\u0080-\u00BF]/.test(utf8Text)) {
+          try { text = new TextDecoder("windows-1251").decode(buffer); } catch (e) {}
+        }
+        parsed = parseCSVText(text);
+      } else {
+        const wb = XLSX.read(new Uint8Array(buffer), { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        rows.forEach((row, idx) => {
+          if (idx === 0 && isNaN(parseInt(row[0]))) return;
+          if (row.length < 5) return;
+          const pair = parseInt(row[0]);
+          if (!pair || pair < 1 || pair > 8) return;
+          const room = String(row[1]).trim();
+          const teacher = String(row[2]).trim();
+          const group = String(row[3]).trim();
+          const subject = String(row[4]).trim();
+          if (!room || !teacher || !group || !subject) return;
+          parsed.push({ pair, room, teacher, group, subject });
+        });
+      }
+      if (!parsed.length) { toast("В файле нет подходящих данных", true); return; }
+      parsedPreview = parsed;
+      showPreview(parsed, file.name);
+    } catch (err) {
+      toast("Ошибка чтения: " + err.message, true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseCSVText(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const parsed = [];
+  lines.forEach(line => {
+    let parts = line.split(";").map(s => s.trim().replace(/^["']|["']$/g, ""));
+    if (parts.length !== 5) {
+      parts = line.split(",").map(s => s.trim().replace(/^["']|["']$/g, ""));
+    }
+    if (parts.length !== 5) return;
+    const pair = parseInt(parts[0]);
+    if (!pair || pair < 1 || pair > 8) return;
+    const room = parts[1], teacher = parts[2], group = parts[3], subject = parts[4];
+    if (!room || !teacher || !group || !subject) return;
+    parsed.push({ pair, room, teacher, group, subject });
+  });
+  return parsed;
+}
+
+function showPreview(list, filename) {
+  const area = document.getElementById("previewArea");
+  const rows = list.slice(0, 10).map(p => `
+    <tr>
+      <td>${p.pair}</td>
+      <td>${escapeHtml(p.room)}</td>
+      <td>${escapeHtml(p.teacher)}</td>
+      <td>${escapeHtml(p.group)}</td>
+      <td>${escapeHtml(p.subject)}</td>
+    </tr>
+  `).join("");
+  const more = list.length > 10
+    ? `<p style="font-size:12px;color:var(--muted);text-align:center">...и ещё ${list.length - 10} строк</p>`
+    : "";
+  area.innerHTML = `
+    <p style="margin-top:14px;font-size:13px;color:var(--dark-green);font-weight:600">
+      📄 ${escapeHtml(filename)} — найдено ${list.length} строк:
+    </p>
+    <table class="preview-table">
+      <thead><tr><th>Пара</th><th>Каб.</th><th>Преподаватель</th><th>Группа</th><th>Предмет</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${more}
+    <div class="form-actions" style="margin-top:14px">
+      <button class="btn btn-ghost" onclick="cancelPreview()">Отмена</button>
+      <button class="btn btn-primary" onclick="confirmUpload()">Добавить всё</button>
+    </div>
+  `;
+}
+
+function cancelPreview() {
+  parsedPreview = [];
+  document.getElementById("previewArea").innerHTML = "";
+}
+
+function confirmUpload() {
+  if (!parsedPreview.length) return;
+  const day = document.getElementById("adminDaySelect").value;
+  if (!schedule[day]) schedule[day] = [];
+  parsedPreview.forEach(p => schedule[day].push({ id: nextId++, ...p }));
+  const n = parsedPreview.length;
+  parsedPreview = [];
+  persist();
+  document.getElementById("previewArea").innerHTML = "";
+  renderAdminList();
+  toast(`Загружено ${n} пар ✓`);
+}
+
+const aiDropzone = document.getElementById("aiDropzone");
+const aiFile = document.getElementById("aiFile");
+const aiStatus = document.getElementById("aiStatus");
+const geminiKeyInput = document.getElementById("geminiKey");
+
+function loadGeminiKey() {
+  try {
+    const saved = localStorage.getItem(GEMINI_KEY_STORAGE);
+    if (saved) geminiKeyInput.value = saved;
+  } catch (e) {}
+}
+function saveGeminiKey() {
+  const val = geminiKeyInput.value.trim();
+  if (!val) { toast("Введите ключ", true); return; }
+  localStorage.setItem(GEMINI_KEY_STORAGE, val);
+  toast("Ключ сохранён ✓");
+}
+function forgetGeminiKey() {
+  if (!confirm("Удалить сохранённый ключ?")) return;
+  localStorage.removeItem(GEMINI_KEY_STORAGE);
+  geminiKeyInput.value = "";
+  toast("Ключ удалён");
+}
+function initAIKey() { loadGeminiKey(); }
+
+["dragenter","dragover"].forEach(ev =>
+  aiDropzone.addEventListener(ev, e => { e.preventDefault(); aiDropzone.classList.add("dragover"); })
+);
+["dragleave","drop"].forEach(ev =>
+  aiDropzone.addEventListener(ev, e => { e.preventDefault(); aiDropzone.classList.remove("dragover"); })
+);
+aiDropzone.addEventListener("drop", e => {
+  if (e.dataTransfer.files.length) handleAIFile(e.dataTransfer.files[0]);
+});
+aiFile.addEventListener("change", e => {
+  if (e.target.files.length) handleAIFile(e.target.files[0]);
+  e.target.value = "";
+});
+
+async function handleAIFile(file) {
+  if (!file.type.startsWith("image/")) { toast("Нужно изображение", true); return; }
+  const apiKey = geminiKeyInput.value.trim();
+  if (apiKey) { try { localStorage.setItem(GEMINI_KEY_STORAGE, apiKey); } catch (e) {} }
+  aiStatus.style.display = "block";
+  aiStatus.textContent = apiKey ? "⏳ Отправляю фото в ИИ…" : "⏳ OCR (без ключа)…";
+  document.getElementById("aiPreviewArea").innerHTML = "";
+  try {
+    const parsed = apiKey ? await recognizeWithAI(file, apiKey) : await recognizeWithTesseract(file);
+    if (!parsed.length) {
+      aiStatus.textContent = "⚠️ Не удалось распознать";
+      toast("Не распознано", true);
+      return;
+    }
+    aiStatus.textContent = `✅ Распознано ${parsed.length} строк`;
+    aiParsedPreview = parsed;
+    showAIPreview(parsed, file.name);
+  } catch (err) {
+    console.error(err);
+    aiStatus.textContent = "❌ Ошибка: " + err.message;
+    toast("Ошибка распознавания", true);
+  }
+}
+
+async function recognizeWithAI(file, apiKey) {
+  const base64 = await fileToBase64(file);
+  const mime = file.type || "image/jpeg";
+  const prompt = `Ты распознаёшь таблицу расписания. Верни СТРОГО JSON {"lessons":[...]}. Элемент: {"day":"Пятница","pair":1,"room":"213","teacher":"Блинов А.В.","group":"14-ЭО-25","subject":"ОТ"}.
+День (Понедельник…Пятница). Если у группы два преподавателя/кабинета — объедини через запятую. Пропускай пустые.`;
+  const res = await fetch(AI_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: AI_MODEL,
+      messages: [{ role: "user", content: [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: `data:${mime};base64,${base64}` } }
+      ]}],
+      temperature: 0.1,
+      response_format: { type: "json_object" }
+    })
+  });
+  if (!res.ok) { const txt = await res.text(); throw new Error(`API: ${res.status} ${txt.slice(0, 300)}`); }
+  const data = await res.json();
+  const text = data.choices?.[0]?.message?.content || "";
+  const cleaned = text.replace(/```json|```/g, "").trim();
+  let parsed;
+  try { parsed = JSON.parse(cleaned); } catch (e) { throw new Error("Не удалось разобрать JSON"); }
+  const arr = Array.isArray(parsed) ? parsed : (parsed.lessons || []);
+  return arr.map(x => ({
+    day: String(x.day || "").trim(),
+    pair: parseInt(x.pair),
+    room: String(x.room || "").trim(),
+    teacher: String(x.teacher || "").trim(),
+    group: String(x.group || "").trim(),
+    subject: String(x.subject || "").trim()
+  })).filter(x => x.pair >= 1 && x.pair <= 8 && x.room && x.teacher && x.group && x.subject && DAYS.includes(x.day));
+}
+
+async function recognizeWithTesseract(file) {
+  const { data: { text } } = await Tesseract.recognize(file, "rus+eng", {
+    logger: m => { if (m.status === "recognizing text") aiStatus.textContent = `⏳ OCR: ${Math.round((m.progress || 0) * 100)}%`; }
+  });
+  const currentDayValue = document.getElementById("adminDaySelect").value;
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  const parsed = [];
+  lines.forEach(line => {
+    const m = line.match(/^(\d)\s+([А-Яа-яA-Za-z0-9/,\s]+?)\s+(\d{1,2}-[А-Яа-я]{2,4}-\d{2})\s+(.+)$/);
+    if (!m) return;
+    const pair = parseInt(m[1]);
+    if (pair < 1 || pair > 8) return;
+    const room = m[2].trim(), group = m[3].trim(), rest = m[4].trim();
+    const parts = rest.split(/\s{2,}/);
+    const teacher = parts[0] || rest;
+    const subject = parts[1] || "—";
+    parsed.push({ day: currentDayValue, pair, room, teacher, group, subject });
+  });
+  return parsed;
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => { const s = String(r.result); resolve(s.split(",")[1]); };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function showAIPreview(list, filename) {
+  const area = document.getElementById("aiPreviewArea");
+  const rows = list.slice(0, 15).map(p => `
+    <tr>
+      <td>${escapeHtml(p.day)}</td>
+      <td>${p.pair}</td>
+      <td>${escapeHtml(p.room)}</td>
+      <td>${escapeHtml(p.teacher)}</td>
+      <td>${escapeHtml(p.group)}</td>
+      <td>${escapeHtml(p.subject)}</td>
+    </tr>
+  `).join("");
+  const more = list.length > 15 ? `<p style="font-size:12px;color:var(--muted);text-align:center">...и ещё ${list.length - 15}</p>` : "";
+  const days = [...new Set(list.map(x => x.day))].join(", ");
+  area.innerHTML = `
+    <p style="margin-top:14px;font-size:13px;color:var(--dark-green);font-weight:600">
+      📸 ${escapeHtml(filename)} — распознано ${list.length} строк. Дни: ${escapeHtml(days)}.
+    </p>
+    <table class="preview-table">
+      <thead><tr><th>День</th><th>Пара</th><th>Каб.</th><th>Преподаватель</th><th>Группа</th><th>Предмет</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${more}
+    <div class="form-actions" style="margin-top:14px">
+      <button class="btn btn-ghost" onclick="cancelAIPreview()">Отмена</button>
+      <button class="btn btn-primary" onclick="confirmAIUpload()">Добавить всё</button>
+    </div>
+  `;
+}
+
+function cancelAIPreview() {
+  aiParsedPreview = [];
+  document.getElementById("aiPreviewArea").innerHTML = "";
+  aiStatus.style.display = "none";
+}
+
+function confirmAIUpload() {
+  if (!aiParsedPreview.length) return;
+  let added = 0;
+  aiParsedPreview.forEach(p => {
+    if (!schedule[p.day]) schedule[p.day] = [];
+    schedule[p.day].push({ id: nextId++, pair: p.pair, room: p.room, teacher: p.teacher, group: p.group, subject: p.subject });
+    added++;
+  });
+  persist();
+  renderAll();
+  renderAdminList();
+  aiParsedPreview = [];
+  document.getElementById("aiPreviewArea").innerHTML = "";
+  aiStatus.style.display = "none";
+  toast(`Добавлено ${added} пар ✓`);
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(schedulesByWeek, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `schedule-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("Экспортировано");
+}
+
+function importJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (typeof data !== "object") throw new Error("Неверный формат");
+      if (data[0] || data[1]) {
+        [0,1].forEach(k => {
+          if (data[k]) {
+            const w = data[k];
+            DAYS.forEach(d => { if (!Array.isArray(w[d])) w[d] = []; });
+            schedulesByWeek[k] = w;
+          }
+        });
+      } else {
+        const base = getEmptyWeek();
+        DAYS.forEach(d => { base[d] = Array.isArray(data[d]) ? data[d] : []; });
+        schedulesByWeek[currentWeekOffset] = base;
+      }
+      schedule = schedulesByWeek[currentWeekOffset];
+      nextId = computeMaxId() + 1;
+      persist();
+      renderAdminList();
+      toast("Импортировано ✓");
+    } catch (err) {
+      toast("Ошибка импорта: " + err.message, true);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+}
+
+function clearDay() {
+  const day = document.getElementById("adminDaySelect").value;
+  if (!confirm(`Очистить все занятия в "${day}"?`)) return;
+  schedule[day] = [];
+  persist();
+  renderAdminList();
+  toast("Очищено");
+}
+
+function resetAll() {
+  if (!confirm("Сбросить ВСЁ расписание (обе недели)?")) return;
+  schedulesByWeek[0] = defaultScheduleWeek0();
+  schedulesByWeek[1] = getEmptyWeek();
+  schedule = schedulesByWeek[currentWeekOffset];
+  nextId = computeMaxId() + 1;
+  persist();
+  renderAdminList();
+  toast("Сброшено");
+}
+
+document.getElementById("loginModal").addEventListener("click", e => {
+  if (e.target.id === "loginModal") closeLogin();
+});
+document.getElementById("adminModal").addEventListener("click", e => {
+  if (e.target.id === "adminModal") closeAdmin();
+});
+
+function applyTheme(theme) {
+  const btn = document.getElementById("themeBtn");
+  if (theme === "dark") { document.body.classList.add("dark"); if (btn) btn.textContent = "☀️"; }
+  else { document.body.classList.remove("dark"); if (btn) btn.textContent = "🌙"; }
+}
+function toggleTheme() {
+  const isDark = document.body.classList.contains("dark");
+  const next = isDark ? "light" : "dark";
+  applyTheme(next);
+  localStorage.setItem(THEME_KEY, next);
+}
+applyTheme(localStorage.getItem(THEME_KEY) || "light");
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js")
+      .then(() => console.log("✅ SW зарегистрирован"))
+      .catch(err => console.warn("SW error:", err));
+  });
+}
+
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (!localStorage.getItem("installDismissed")) {
+    document.getElementById("installBanner").classList.add("show");
+  }
+});
+function installPWA() {
+  if (!deferredPrompt) { toast("Установка через меню браузера"); return; }
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(choice => {
+    if (choice.outcome === "accepted") toast("Установлено ✓");
+    deferredPrompt = null;
+    document.getElementById("installBanner").classList.remove("show");
+  });
+}
+function dismissInstall() {
+  document.getElementById("installBanner").classList.remove("show");
+  localStorage.setItem("installDismissed", "1");
+}
+
+loadAllWeeks().then(() => renderAll());
+
+const __initialDate = new Date().toDateString();
+setInterval(() => {
+  if (new Date().toDateString() !== __initialDate) location.reload();
+}, 60 * 1000);
+</script>
+</body>
+</html>
